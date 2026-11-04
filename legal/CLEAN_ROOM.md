@@ -20,3 +20,5 @@ Coffer reimplementa il formato dei volumi VeraCrypt **senza usare il codice sorg
 |---|---|---|
 | 2026-11-04 | https://veracrypt.io/en/VeraCrypt%20License.html | Termini di licenza e restrizioni sul nome |
 | 2026-11-04 | https://veracrypt.io/en/Release%20Notes.html | Argon2id introdotto in 1.26.29 |
+| 2026-11-04 | https://veracrypt.io/en/Command%20Line%20Usage%20for%20Windows.html | Sintassi di `VeraCrypt Format.exe /create`, nomi di cifrari e hash per il corpus |
+| 2026-11-04 | Comportamento osservato di VeraCrypt Format 1.26.29 | `argon2id` non accettato (`argon2` sì); PIM < 485 richiede password ≥ 20 caratteri; exFAT con Argon2 richiede il driver aggiornato |
