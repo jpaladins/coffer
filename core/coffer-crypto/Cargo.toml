@@ -26,4 +26,6 @@ cipher = { version = "0.5.2", features = ["zeroize"] }
 
 [dev-dependencies]
 aes = "0.9.4"
+crc32fast = "1.5.4"
 hex = "0.4.3"
+zeroize.workspace = true

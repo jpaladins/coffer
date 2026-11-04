@@ -6,6 +6,7 @@
 mod cancel;
 mod cipher;
 mod error;
+mod header;
 mod kdf;
 mod keyfile;
 mod prf;
@@ -14,6 +15,9 @@ mod xts;
 pub use cancel::CancelToken;
 pub use cipher::{Algo, CipherSuite, XtsCascade};
 pub use error::CofferError;
+pub use header::{
+    decrypt_header, encrypt_header, Credentials, VolumeHeader, HEADER_LEN, MASTER_KEY_LEN,
+};
 pub use kdf::{
     argon2_params, derive_header_key, derive_header_key_with_limit, iterations, pbkdf2_raw,
     Argon2Params, DEFAULT_MAX_KDF_MEMORY, HEADER_KEY_LEN, SALT_LEN,
