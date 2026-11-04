@@ -8,5 +8,4 @@ publish.workspace = true
 
 [dependencies]
 coffer-crypto.workspace = true
-thiserror.workspace = true
 zeroize.workspace = true

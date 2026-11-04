@@ -111,7 +111,6 @@ name = "coffer-volume"
 version = "0.1.0"
 dependencies = [
  "coffer-crypto",
- "thiserror",
  "zeroize",
 ]
 
