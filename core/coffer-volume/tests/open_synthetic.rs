@@ -201,3 +201,19 @@ fn unaligned_write_then_read_back() {
         .enumerate()
         .all(|(i, b)| *b == pattern(1, i as u64)));
 }
+
+#[test]
+fn hidden_and_backup_still_tried_when_argon2_skipped_for_memory() {
+    let mut c = creds("hidden");
+    c.prf_hint = None; // auto-detect: Argon2id will be skipped for memory
+    c.max_kdf_memory = 1024 * 1024;
+    let v = open_volume(dev(build(true)), &c, &CancelToken::new()).unwrap();
+    assert_eq!(v.kind, VolumeKind::Hidden);
+    let mut img = build(false);
+    img[..512].fill(0);
+    let mut c = creds("outer");
+    c.prf_hint = None;
+    c.max_kdf_memory = 1024 * 1024;
+    let v = open_volume(dev(img), &c, &CancelToken::new()).unwrap();
+    assert!(v.used_backup_header);
+}

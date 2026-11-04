@@ -91,12 +91,12 @@ fn argon2id(
 ) -> Result<(), CofferError> {
     let p = argon2_params(pim);
     let required_bytes = u64::from(p.m_cost_kib) * 1024;
-    if required_bytes > max_kdf_memory {
-        return Err(CofferError::KdfOutOfMemory { required_bytes });
-    }
     if cancel.is_cancelled() {
         return Err(CofferError::Cancelled);
     }
+    // Reserve memory against the budget, counting workers that are still
+    // running after an earlier cancellation.
+    let reservation = MemoryReservation::try_new(required_bytes, max_kdf_memory)?;
     let params = argon2::Params::new(p.m_cost_kib, p.t_cost, 1, Some(out.len()))
         .map_err(|e| CofferError::Unsupported(format!("argon2 params: {e}")))?;
     let pw = Zeroizing::new(password.to_vec());
@@ -106,6 +106,7 @@ fn argon2id(
     std::thread::Builder::new()
         .name("coffer-argon2".into())
         .spawn(move || {
+            let _reservation = reservation; // released when the worker ends
             let a =
                 argon2::Argon2::new(argon2::Algorithm::Argon2id, argon2::Version::V0x13, params);
             let mut buf = Zeroizing::new(vec![0u8; out_len]);
@@ -132,6 +133,41 @@ fn argon2id(
                 return Err(CofferError::Io("KDF thread terminated".into()));
             }
         }
+    }
+}
+
+/// Bytes held by running Argon2id workers (including cancelled ones that
+/// have not finished yet), process-wide.
+static LIVE_ARGON2_BYTES: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+struct MemoryReservation(u64);
+
+impl MemoryReservation {
+    fn try_new(bytes: u64, budget: u64) -> Result<Self, CofferError> {
+        use std::sync::atomic::Ordering;
+        let mut live = LIVE_ARGON2_BYTES.load(Ordering::Acquire);
+        loop {
+            if live.saturating_add(bytes) > budget {
+                return Err(CofferError::KdfOutOfMemory {
+                    required_bytes: bytes,
+                });
+            }
+            match LIVE_ARGON2_BYTES.compare_exchange(
+                live,
+                live + bytes,
+                Ordering::AcqRel,
+                Ordering::Acquire,
+            ) {
+                Ok(_) => return Ok(Self(bytes)),
+                Err(current) => live = current,
+            }
+        }
+    }
+}
+
+impl Drop for MemoryReservation {
+    fn drop(&mut self) {
+        LIVE_ARGON2_BYTES.fetch_sub(self.0, std::sync::atomic::Ordering::AcqRel);
     }
 }
 

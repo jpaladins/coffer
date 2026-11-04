@@ -99,3 +99,13 @@ fn cascade_differs_from_single_cipher() {
 fn wrong_key_length_rejected() {
     assert!(XtsCascade::new(CipherSuite::Aes, &[0u8; 32]).is_err());
 }
+
+#[test]
+fn all_cipher_key_schedules_zeroize_on_drop() {
+    fn assert_zod<T: zeroize::ZeroizeOnDrop>() {}
+    assert_zod::<aes::Aes256>();
+    assert_zod::<serpent::Serpent>();
+    assert_zod::<twofish::Twofish>();
+    assert_zod::<camellia::Camellia256>();
+    assert_zod::<kuznyechik::Kuznyechik>();
+}

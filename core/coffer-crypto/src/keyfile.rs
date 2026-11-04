@@ -19,9 +19,8 @@ pub const KEYFILE_MAX_READ: usize = 1_048_576;
 /// zero-padded to the pool size, is then combined with the pool by bytewise
 /// addition modulo 256.
 pub fn apply_keyfiles(password: &[u8], keyfiles: &[Vec<u8>]) -> Zeroizing<Vec<u8>> {
-    let mut out = Zeroizing::new(password.to_vec());
     if keyfiles.is_empty() {
-        return out;
+        return Zeroizing::new(password.to_vec());
     }
     let pool_len = if password.len() > KEYFILE_POOL_LEN {
         KEYFILE_POOL_LEN_LONG
@@ -40,9 +39,11 @@ pub fn apply_keyfiles(password: &[u8], keyfiles: &[Vec<u8>]) -> Zeroizing<Vec<u8
             }
         }
     }
-    if out.len() < pool_len {
-        out.resize(pool_len, 0);
-    }
+    // Allocate the final size up front: growing the buffer later would free
+    // a copy of the password without zeroizing it.
+    let mut out = Zeroizing::new(Vec::with_capacity(password.len().max(pool_len)));
+    out.extend_from_slice(password);
+    out.resize(password.len().max(pool_len), 0);
     out.iter_mut()
         .zip(pool.iter())
         .for_each(|(b, g)| *b = b.wrapping_add(*g));

@@ -17,7 +17,7 @@ blake2 = "0.11.0"
 argon2 = "0.6.0"
 crc32fast = "1.5.4"
 digest = "0.11.3"
-aes = "0.9.4"
+aes = { version = "0.9.4", features = ["zeroize"] }
 serpent = { version = "0.6.0", features = ["zeroize"] }
 twofish = { version = "0.8.0", features = ["zeroize"] }
 camellia = { version = "0.2.1", features = ["zeroize"] }
@@ -26,6 +26,10 @@ cipher = { version = "0.5.2", features = ["zeroize"] }
 
 [dev-dependencies]
 aes = "0.9.4"
+camellia = "0.2.1"
 crc32fast = "1.5.4"
 hex = "0.4.3"
+kuznyechik = "0.9.0"
+serpent = "0.6.0"
+twofish = "0.8.0"
 zeroize.workspace = true

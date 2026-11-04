@@ -52,6 +52,9 @@ pub fn open_volume_with(
         candidates.push((backup_std_header(len), VolumeKind::Standard, true));
         candidates.push((backup_hidden_header(len), VolumeKind::Hidden, true));
     }
+    // An Argon2id attempt skipped for memory on one header must not stop
+    // the search: the volume may be PBKDF2 behind another header.
+    let mut skipped_for_memory = None;
     for (off, kind, backup) in candidates {
         let mut raw = [0u8; HEADER_LEN];
         dev.read_at(off, &mut raw)?;
@@ -61,10 +64,11 @@ pub fn open_volume_with(
                 return OpenedVolume::new(kind, backup, h, dev);
             }
             Err(CofferError::WrongCredentials) => continue,
+            Err(e @ CofferError::KdfOutOfMemory { .. }) => skipped_for_memory = Some(e),
             Err(e) => return Err(e),
         }
     }
-    Err(CofferError::WrongCredentials)
+    Err(skipped_for_memory.unwrap_or(CofferError::WrongCredentials))
 }
 
 fn validate(h: &VolumeHeader, len: u64) -> Result<(), CofferError> {

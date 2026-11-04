@@ -186,4 +186,11 @@ fn cancel_stops_argon2_promptly() {
     t.join().unwrap();
     assert!(matches!(r, Err(CofferError::Cancelled)));
     assert!(start.elapsed() < Duration::from_secs(1));
+    // The cancelled worker still holds its 1 GiB: a new run must not stack
+    // another one on top of it within the same 1 GiB budget.
+    let again = derive_header_key(Prf::Argon2id, b"pw", &[3u8; 64], 40, &CancelToken::new());
+    assert!(
+        matches!(again, Err(CofferError::KdfOutOfMemory { .. })),
+        "expected KdfOutOfMemory while a cancelled worker is alive"
+    );
 }
