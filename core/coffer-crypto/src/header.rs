@@ -190,13 +190,21 @@ pub fn decrypt_header(
         Outcome::NoMatch
     };
 
-    // Phase 1: PBKDF2 PRFs in parallel. Phase 2: Argon2id, which is
-    // memory-hard and can take minutes with a large PIM, only if needed.
+    // Phase 1: SHA-512 alone (VeraCrypt's default, so the most likely).
+    // Phase 2: the other PBKDF2 PRFs in parallel. Phase 3: Argon2id, which
+    // is memory-hard and can take minutes with a large PIM, only if needed.
+    // Running SHA-512 alone first guarantees it the whole CPU instead of
+    // queueing behind the other PRFs on devices with few cores.
     let (memory_hard, pbkdf2): (Vec<Prf>, Vec<Prf>) =
         prfs.into_iter().partition(|p| *p == Prf::Argon2id);
-    let mut outcomes: Vec<Outcome> = pbkdf2.par_iter().map(|&p| attempt(p)).collect();
-    if !outcomes.iter().any(|o| matches!(o, Outcome::Found(_))) {
-        outcomes.extend(memory_hard.into_iter().map(attempt));
+    let (first, rest): (Vec<Prf>, Vec<Prf>) = pbkdf2.into_iter().partition(|p| *p == Prf::Sha512);
+    let mut outcomes: Vec<Outcome> = Vec::new();
+    let found_any = |o: &[Outcome]| o.iter().any(|x| matches!(x, Outcome::Found(_)));
+    for phase in [first, rest, memory_hard] {
+        if found_any(&outcomes) || cancel.is_cancelled() {
+            break;
+        }
+        outcomes.extend(phase.par_iter().map(|&p| attempt(p)).collect::<Vec<_>>());
     }
 
     let mut oom = None;
