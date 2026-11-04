@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 108 108">
+  <title>Coffer — volume nel volume</title>
+  <rect width="108" height="108" fill="#0B3D2E"/>
+  <g transform="translate(54 54)">
+    <path d="M0 -30 L26 -15 L26 15 L0 30 L-26 15 L-26 -15 Z" fill="#E8B04A"/>
+    <path d="M0 -30 L26 -15 L0 0 L-26 -15 Z" fill="#F5D38A"/>
+    <path d="M0 -15 L13 -7.5 L13 7.5 L0 15 L-13 7.5 L-13 -7.5 Z" fill="#0B3D2E"/>
+    <path d="M0 -8 L7 -4 L7 4 L0 8 L-7 4 L-7 -4 Z" fill="#E8B04A"/>
+  </g>
+</svg>

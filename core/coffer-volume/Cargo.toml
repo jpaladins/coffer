@@ -1,0 +1,12 @@
+[package]
+name = "coffer-volume"
+description = "VeraCrypt-compatible container layout and decrypted block device"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+coffer-crypto.workspace = true
+thiserror.workspace = true
+zeroize.workspace = true

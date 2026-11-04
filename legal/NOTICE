@@ -1,0 +1,13 @@
+Coffer
+Copyright (C) 2026 The Coffer Authors
+
+This program is free software: you can redistribute it and/or modify it under
+the terms of the GNU General Public License as published by the Free Software
+Foundation, either version 3 of the License, or (at your option) any later
+version. See LICENSE.
+
+Coffer contains no code from VeraCrypt or TrueCrypt. VeraCrypt is a trademark
+of IDRIX; Coffer is not affiliated with IDRIX.
+
+Third-party components (Rust crates) are listed with their licenses in
+THIRD_PARTY.md, generated from `cargo deny list` before each release.

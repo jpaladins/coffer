@@ -1,0 +1,23 @@
+[workspace]
+resolver = "2"
+members = ["coffer-crypto", "coffer-volume"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "GPL-3.0-or-later"
+publish = false
+
+[workspace.dependencies]
+coffer-crypto = { path = "coffer-crypto" }
+thiserror = "2"
+zeroize = { version = "1", features = ["zeroize_derive"] }
+rayon = "1"
+
+[profile.test]
+opt-level = 3
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+panic = "abort"

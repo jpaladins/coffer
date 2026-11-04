@@ -1,0 +1,2 @@
+[build]
+# Android linkers are provided by cargo-ndk.

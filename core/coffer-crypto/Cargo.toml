@@ -1,0 +1,12 @@
+[package]
+name = "coffer-crypto"
+description = "VeraCrypt-compatible volume header cryptography (clean-room)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+thiserror.workspace = true
+zeroize.workspace = true
+rayon.workspace = true
