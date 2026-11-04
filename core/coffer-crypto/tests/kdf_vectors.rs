@@ -155,3 +155,35 @@ fn keyfiles_only_first_mib_counts() {
     let p2 = apply_keyfiles(b"", &[a]);
     assert_eq!(p1.as_slice(), p2.as_slice());
 }
+
+#[test]
+fn long_password_uses_128_byte_pool() {
+    let pw = [b'a'; 100];
+    assert_eq!(apply_keyfiles(&pw, &[vec![9u8; 10]]).len(), 128);
+    assert_eq!(apply_keyfiles(&[b'a'; 64], &[vec![9u8; 10]]).len(), 64);
+}
+
+#[test]
+fn keyfile_mixing_is_additive() {
+    // One keyfile byte 0x00: CRC register = table[0xFF] ^ 0x00FFFFFF, added to pool[0..4].
+    let p0 = apply_keyfiles(b"", &[vec![0u8]]);
+    let p1 = apply_keyfiles(&[1u8], &[vec![0u8]]);
+    assert_eq!(p1[0], p0[0].wrapping_add(1));
+    assert_eq!(&p1[1..], &p0[1..]);
+}
+
+#[test]
+fn cancel_stops_argon2_promptly() {
+    let cancel = CancelToken::new();
+    let c2 = cancel.clone();
+    let t = std::thread::spawn(move || {
+        std::thread::sleep(Duration::from_millis(100));
+        c2.cancel();
+    });
+    let start = Instant::now();
+    // PIM 40: 1 GiB, 22 passes — many seconds without cancellation.
+    let r = derive_header_key(Prf::Argon2id, b"pw", &[3u8; 64], 40, &cancel);
+    t.join().unwrap();
+    assert!(matches!(r, Err(CofferError::Cancelled)));
+    assert!(start.elapsed() < Duration::from_secs(1));
+}

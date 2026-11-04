@@ -78,6 +78,9 @@ pub fn derive_header_key_with_limit(
     Ok(out)
 }
 
+/// Runs Argon2id on a worker thread so that cancellation returns promptly
+/// (the argon2 crate has no cancellation hook). On cancel the worker is left
+/// to finish in the background; its inputs and output are zeroized on drop.
 fn argon2id(
     password: &[u8],
     salt: &[u8],
@@ -96,13 +99,40 @@ fn argon2id(
     }
     let params = argon2::Params::new(p.m_cost_kib, p.t_cost, 1, Some(out.len()))
         .map_err(|e| CofferError::Unsupported(format!("argon2 params: {e}")))?;
-    let a = argon2::Argon2::new(argon2::Algorithm::Argon2id, argon2::Version::V0x13, params);
-    a.hash_password_into(password, salt, out)
-        .map_err(|e| CofferError::Unsupported(format!("argon2: {e}")))?;
-    if cancel.is_cancelled() {
-        return Err(CofferError::Cancelled);
+    let pw = Zeroizing::new(password.to_vec());
+    let salt = salt.to_vec();
+    let out_len = out.len();
+    let (tx, rx) = std::sync::mpsc::channel::<Result<Zeroizing<Vec<u8>>, CofferError>>();
+    std::thread::Builder::new()
+        .name("coffer-argon2".into())
+        .spawn(move || {
+            let a =
+                argon2::Argon2::new(argon2::Algorithm::Argon2id, argon2::Version::V0x13, params);
+            let mut buf = Zeroizing::new(vec![0u8; out_len]);
+            let r = a
+                .hash_password_into(&pw, &salt, &mut buf)
+                .map(|_| buf)
+                .map_err(|e| CofferError::Unsupported(format!("argon2: {e}")));
+            let _ = tx.send(r);
+        })
+        .map_err(|e| CofferError::Io(format!("cannot start KDF thread: {e}")))?;
+    loop {
+        match rx.recv_timeout(std::time::Duration::from_millis(25)) {
+            Ok(r) => {
+                let buf = r?;
+                out.copy_from_slice(&buf);
+                return Ok(());
+            }
+            Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
+                if cancel.is_cancelled() {
+                    return Err(CofferError::Cancelled);
+                }
+            }
+            Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => {
+                return Err(CofferError::Io("KDF thread terminated".into()));
+            }
+        }
     }
-    Ok(())
 }
 
 /// PBKDF2-HMAC (RFC 8018) with cooperative cancellation. Output blocks are

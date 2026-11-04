@@ -162,36 +162,42 @@ pub fn decrypt_header(
         .map_or_else(|| CipherSuite::ALL.to_vec(), |s| vec![s]);
     let found = cancel.child();
 
-    let outcomes: Vec<Outcome> = prfs
-        .par_iter()
-        .map(|&prf| {
-            if found.is_cancelled() {
-                return Outcome::Cancelled;
+    let attempt = |prf: Prf| -> Outcome {
+        if found.is_cancelled() {
+            return Outcome::Cancelled;
+        }
+        let key = match derive_header_key_with_limit(
+            prf,
+            &password,
+            &salt,
+            creds.pim,
+            &found,
+            creds.max_kdf_memory,
+        ) {
+            Ok(k) => k,
+            Err(CofferError::Cancelled) => return Outcome::Cancelled,
+            Err(CofferError::KdfOutOfMemory { required_bytes }) => {
+                return Outcome::OutOfMemory(required_bytes)
             }
-            let key = match derive_header_key_with_limit(
-                prf,
-                &password,
-                &salt,
-                creds.pim,
-                &found,
-                creds.max_kdf_memory,
-            ) {
-                Ok(k) => k,
-                Err(CofferError::Cancelled) => return Outcome::Cancelled,
-                Err(CofferError::KdfOutOfMemory { required_bytes }) => {
-                    return Outcome::OutOfMemory(required_bytes)
-                }
-                Err(e) => return Outcome::Failed(e),
-            };
-            for &suite in &suites {
-                if let Some(h) = try_suite(raw, key.as_ref(), suite, prf) {
-                    found.cancel();
-                    return Outcome::Found(Box::new(h));
-                }
+            Err(e) => return Outcome::Failed(e),
+        };
+        for &suite in &suites {
+            if let Some(h) = try_suite(raw, key.as_ref(), suite, prf) {
+                found.cancel();
+                return Outcome::Found(Box::new(h));
             }
-            Outcome::NoMatch
-        })
-        .collect();
+        }
+        Outcome::NoMatch
+    };
+
+    // Phase 1: PBKDF2 PRFs in parallel. Phase 2: Argon2id, which is
+    // memory-hard and can take minutes with a large PIM, only if needed.
+    let (memory_hard, pbkdf2): (Vec<Prf>, Vec<Prf>) =
+        prfs.into_iter().partition(|p| *p == Prf::Argon2id);
+    let mut outcomes: Vec<Outcome> = pbkdf2.par_iter().map(|&p| attempt(p)).collect();
+    if !outcomes.iter().any(|o| matches!(o, Outcome::Found(_))) {
+        outcomes.extend(memory_hard.into_iter().map(attempt));
+    }
 
     let mut oom = None;
     let mut failure = None;

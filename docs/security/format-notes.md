@@ -8,17 +8,29 @@ Raccolte **solo** dalla documentazione pubblica (`C:\Program Files\VeraCrypt\doc
 - Output: 192 byte. Ogni cifrario usa il prefisso necessario (64 byte per cifrario: 32 di chiave primaria e 32 di chiave secondaria XTS).
 - Iterazioni PBKDF2 (volumi non di sistema e file container): PIM = 0 → 500 000; PIM > 0 → 15 000 + PIM × 1000.
 - Argon2id: parallelismo 1. Con PIM > 0: m_cost = min(64 + (PIM − 1) × 32, 1024) MiB; t_cost = 3 + ⌊(PIM − 1) / 3⌋ se PIM ≤ 31, altrimenti 13 + (PIM − 31). Con PIM = 0 si usano i parametri di PIM = 12 (416 MiB, 6 iterazioni). Vanno richiesti sempre 192 byte, perché la lunghezza dell'output entra nel calcolo di Argon2.
-- Argon2id, dettagli **[oracolo]**: versione 0x13, nessun secret né associated data; salt = i 64 byte del salt dell'header.
+- Argon2id **[oracolo, confermato]**: versione 0x13, nessun secret né associated data; salt = i 64 byte del salt dell'header.
 
 ## Cascate (pagina "Header Key Derivation")
 - Nella cascata "AES-Twofish-Serpent" (n = 3) la chiave derivata si divide in n chiavi primarie da 32 byte seguite da n chiavi secondarie da 32 byte. La **prima** chiave è usata da **Serpent**, la seconda da Twofish, la terza da AES: l'ordine delle chiavi è l'inverso del nome, cioè l'ordine con cui i cifrari vengono applicati in cifratura.
-- Ordine di applicazione **[oracolo]**: in cifratura Serpent, poi Twofish, poi AES (ognuno in XTS completo); in decifratura l'ordine è inverso.
+- Ordine di applicazione **[oracolo, confermato]**: in cifratura Serpent, poi Twofish, poi AES (ognuno in XTS completo); in decifratura l'ordine è inverso. La master key (byte 256–511) ha la stessa disposizione: n chiavi primarie, poi n chiavi secondarie.
 
 ## Keyfile (pagina "Keyfiles")
 - Vengono letti al massimo i primi 1 048 576 byte di ogni keyfile.
 - Il pool KP è inizializzato a zero; per ogni keyfile il cursore riparte da 0 e l'hash H viene reinizializzato. Per ogni byte letto si aggiorna H senza finalizzarlo e si sommano modulo 256 i byte dello stato M nel pool, a partire dalla posizione del cursore (che torna a 0 alla fine del pool).
-- La password viene estesa con zeri fino alla lunghezza del pool, poi B_i ^= G_i.
-- Dettagli **[oracolo]**: H = CRC-32 (stato di 4 byte); valore e ordine dei byte dello stato; dimensione del pool (64 secondo la documentazione, che però descrive password fino a 64 byte, mentre la 1.26 ne accetta 128).
+- La password viene estesa con zeri fino alla lunghezza del pool. **[oracolo, confermato]** Il pool si combina con la password per **somma modulo 256**, non in XOR come descrive la pagina "Keyfiles".
+- **[oracolo, confermato]** H = CRC-32 IEEE (tabella riflessa 0xEDB88320, registro iniziale 0xFFFFFFFF). Lo stato aggiunto al pool è il registro **non finalizzato** (senza la negazione finale), in big-endian; registro e cursore ripartono da zero a ogni keyfile.
+- **[oracolo, confermato]** Il pool è di 64 byte se la password è lunga al massimo 64 byte, di 128 byte se è più lunga (la 1.26 accetta fino a 128 byte).
 
 ## Password
-- Codifica dei caratteri non ASCII **[oracolo]**: UTF-8.
+- Codifica dei caratteri non ASCII **[oracolo, confermato]**: UTF-8 (`pàsswörd€`).
+- Lunghezza massima: 128 byte UTF-8 (note di rilascio 1.26).
+
+## Layout del container
+- Header standard @0, header nascosto @65536, area dati @131072 (`encrypted_area_start` dell'header), backup standard @S−131072, backup nascosto @S−65536 (pagina "VeraCrypt Volume Format Specification").
+- **[oracolo, confermato]** L'area cifrata dell'header (448 byte) si decifra come unità XTS numero 0.
+
+## Area dati
+- **[oracolo, confermato]** Il numero di unità XTS di un settore è il suo offset **assoluto** nel file container diviso per 512 (il primo settore dati è l'unità 256).
+
+## Osservazioni sul corpus
+- `VeraCrypt Format.exe /filesystem FAT` sceglie FAT16 per i container da 10 e 64 MiB. Un container FAT32 va creato più grande (in P2).

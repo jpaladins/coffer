@@ -9,3 +9,6 @@ publish.workspace = true
 [dependencies]
 coffer-crypto.workspace = true
 zeroize.workspace = true
+
+[dev-dependencies]
+serde_json = "1.0.154"

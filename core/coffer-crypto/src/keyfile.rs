@@ -1,64 +1,51 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-//! Keyfile pool (see docs/security/format-notes.md, "Keyfile").
+//! Keyfile pool (see docs/security/format-notes.md, "Keyfile"). Details not
+//! fixed by the documentation were pinned against the VeraCrypt corpus.
 use zeroize::Zeroizing;
 
+/// Pool size for passwords up to 64 bytes (legacy maximum length).
 pub const KEYFILE_POOL_LEN: usize = 64;
+/// Pool size for passwords longer than 64 bytes (maximum 128).
+pub const KEYFILE_POOL_LEN_LONG: usize = 128;
 pub const KEYFILE_MAX_READ: usize = 1_048_576;
-
-/// How the 4-byte CRC-32 state is added to the pool. Kept configurable so the
-/// corpus oracle can pin the variant (see Task 7 ruling).
-#[doc(hidden)]
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct KeyfileVariant {
-    pub pool_len: usize,
-    pub big_endian: bool,
-    pub finalized: bool,
-}
-
-pub const KEYFILE_VARIANT: KeyfileVariant = KeyfileVariant {
-    pool_len: KEYFILE_POOL_LEN,
-    big_endian: true,
-    finalized: true,
-};
 
 /// Combines keyfiles with the password. Without keyfiles the password is
 /// returned unchanged.
+///
+/// For each keyfile (first 1 MiB), a CRC-32 register (reset per keyfile, not
+/// finalized) is updated byte by byte; after each byte its 4 bytes
+/// (big-endian) are added modulo 256 into the pool at a cursor that restarts
+/// at 0 for each keyfile and wraps at the end of the pool. The password,
+/// zero-padded to the pool size, is then combined with the pool by bytewise
+/// addition modulo 256.
 pub fn apply_keyfiles(password: &[u8], keyfiles: &[Vec<u8>]) -> Zeroizing<Vec<u8>> {
-    apply_keyfiles_variant(password, keyfiles, KEYFILE_VARIANT)
-}
-
-#[doc(hidden)]
-pub fn apply_keyfiles_variant(
-    password: &[u8],
-    keyfiles: &[Vec<u8>],
-    v: KeyfileVariant,
-) -> Zeroizing<Vec<u8>> {
     let mut out = Zeroizing::new(password.to_vec());
     if keyfiles.is_empty() {
         return out;
     }
-    let mut pool = Zeroizing::new(vec![0u8; v.pool_len]);
+    let pool_len = if password.len() > KEYFILE_POOL_LEN {
+        KEYFILE_POOL_LEN_LONG
+    } else {
+        KEYFILE_POOL_LEN
+    };
+    let mut pool = Zeroizing::new(vec![0u8; pool_len]);
     for kf in keyfiles {
         let mut cursor = 0usize;
         let mut reg: u32 = 0xFFFF_FFFF;
         for &b in kf.iter().take(KEYFILE_MAX_READ) {
             reg = CRC_TABLE[((reg ^ u32::from(b)) & 0xFF) as usize] ^ (reg >> 8);
-            let state = if v.finalized { !reg } else { reg };
-            let bytes = if v.big_endian {
-                state.to_be_bytes()
-            } else {
-                state.to_le_bytes()
-            };
-            for t in bytes {
+            for t in reg.to_be_bytes() {
                 pool[cursor] = pool[cursor].wrapping_add(t);
-                cursor = (cursor + 1) % v.pool_len;
+                cursor = (cursor + 1) % pool_len;
             }
         }
     }
-    if out.len() < v.pool_len {
-        out.resize(v.pool_len, 0);
+    if out.len() < pool_len {
+        out.resize(pool_len, 0);
     }
-    out.iter_mut().zip(pool.iter()).for_each(|(b, g)| *b ^= g);
+    out.iter_mut()
+        .zip(pool.iter())
+        .for_each(|(b, g)| *b = b.wrapping_add(*g));
     out
 }
 
