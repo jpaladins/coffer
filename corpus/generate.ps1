@@ -31,6 +31,7 @@ foreach ($pim in 1, 485) { [void]$jobs.Add(@{ cipher='AES'; hash='sha512'; fs='F
 [void]$jobs.Add(@{ cipher='AES'; hash='sha512'; fs='FAT'; size='10M'; pw=''; pim=0; kf=@('kf-4k.bin'); tag='kf-nopass' })
 [void]$jobs.Add(@{ cipher='AES'; hash='sha512'; fs='FAT'; size='64M'; pw='coffer-test'; pim=0; kf=@(); tag='fat32' })
 [void]$jobs.Add(@{ cipher='AES'; hash='sha512'; fs='ExFAT'; size='64M'; pw='coffer-test'; pim=0; kf=@() })
+[void]$jobs.Add(@{ cipher='AES'; hash='argon2'; fs='ExFAT'; size='64M'; pw='coffer-test'; pim=0; kf=@() })
 [void]$jobs.Add(@{ cipher='Serpent(Twofish(AES))'; hash='argon2'; fs='FAT'; size='10M'; pw='coffer-test'; pim=0; kf=@() })
 [void]$jobs.Add(@{ cipher='AES'; hash='sha512'; fs='FAT'; size='10M'; pw=('abcdefghij' * 10); pim=0; kf=@('kf-4k.bin'); tag='longpw-kf' })
 [void]$jobs.Add(@{ cipher='AES'; hash='sha512'; fs='FAT'; size='10M'; pw='pàsswörd€'; pim=0; kf=@(); tag='utf8-pass' })

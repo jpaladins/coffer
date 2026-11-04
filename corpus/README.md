@@ -14,7 +14,7 @@ Contenuto: 15 cifrari/cascate × SHA-512, AES × (SHA-256, Whirlpool, BLAKE2s-25
 Note sulla versione verificata (1.26.29):
 - `VeraCrypt Format.exe` accetta `/hash argon2` (oppure `blake2b-512`), ma **non** `argon2id`, che compare nella documentazione online della 1.26.30.
 - Un PIM minore di 485 richiede una password di almeno 20 caratteri.
-- Il formato exFAT richiede il driver VeraCrypt aggiornato: dopo un aggiornamento di VeraCrypt va riavviato il PC prima di creare volumi exFAT con Argon2id.
+- Il formato exFAT richiede il driver VeraCrypt aggiornato: dopo un aggiornamento di VeraCrypt va riavviato il PC prima di creare volumi exFAT con Argon2id (verificato: dopo il riavvio `aes-argon2-exfat.hc` si crea correttamente).
 
 ## Test
 
