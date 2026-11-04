@@ -10,3 +10,13 @@ publish.workspace = true
 thiserror.workspace = true
 zeroize.workspace = true
 rayon.workspace = true
+sha2 = "0.11.1"
+whirlpool = "0.11.0"
+streebog = "0.11.0"
+blake2 = "0.11.0"
+argon2 = "0.6.0"
+crc32fast = "1.5.4"
+digest = "0.11.3"
+
+[dev-dependencies]
+hex = "0.4.3"

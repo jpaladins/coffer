@@ -1,3 +1,22 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 //! Clean-room implementation of VeraCrypt volume header cryptography.
+//! Sources: docs/security/format-notes.md and legal/CLEAN_ROOM.md.
+
+mod cancel;
+mod error;
+mod kdf;
+mod keyfile;
+mod prf;
+
+pub use cancel::CancelToken;
+pub use error::CofferError;
+pub use kdf::{
+    argon2_params, derive_header_key, derive_header_key_with_limit, iterations, pbkdf2_raw,
+    Argon2Params, DEFAULT_MAX_KDF_MEMORY, HEADER_KEY_LEN, SALT_LEN,
+};
+pub use keyfile::{
+    apply_keyfiles, apply_keyfiles_variant, KeyfileVariant, KEYFILE_MAX_READ, KEYFILE_POOL_LEN,
+    KEYFILE_VARIANT,
+};
+pub use prf::Prf;
