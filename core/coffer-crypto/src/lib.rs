@@ -4,12 +4,15 @@
 //! Sources: docs/security/format-notes.md and legal/CLEAN_ROOM.md.
 
 mod cancel;
+mod cipher;
 mod error;
 mod kdf;
 mod keyfile;
 mod prf;
+mod xts;
 
 pub use cancel::CancelToken;
+pub use cipher::{Algo, CipherSuite, XtsCascade};
 pub use error::CofferError;
 pub use kdf::{
     argon2_params, derive_header_key, derive_header_key_with_limit, iterations, pbkdf2_raw,
@@ -20,3 +23,4 @@ pub use keyfile::{
     KEYFILE_VARIANT,
 };
 pub use prf::Prf;
+pub use xts::{Xts, DATA_UNIT};
