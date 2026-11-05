@@ -2,39 +2,36 @@
 package app.coffer
 
 import android.os.Bundle
-import android.util.Log
+import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.dp
-import app.coffer.ffi.FfiCancel
+import androidx.activity.enableEdgeToEdge
+import app.coffer.data.SessionManager
+import app.coffer.nav.CofferNavHost
+import app.coffer.security.SecuritySettings
+import app.coffer.ui.theme.CofferTheme
 import dagger.hilt.android.AndroidEntryPoint
+import javax.inject.Inject
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
+    @Inject lateinit var sessions: SessionManager
+    @Inject lateinit var settings: SecuritySettings
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val nativeOk = runCatching { FfiCancel().close() }
-            .onFailure { Log.e("Coffer", "native library failed to load", it) }
-            .isSuccess
-        Log.i("Coffer", "native library loaded: $nativeOk")
-        setContent {
-            MaterialTheme {
-                Surface(Modifier.fillMaxSize()) {
-                    Column(Modifier.padding(24.dp)) {
-                        Text(stringResource(R.string.app_name), style = MaterialTheme.typography.headlineMedium)
-                        Text(stringResource(R.string.tagline))
-                        Text(stringResource(if (nativeOk) R.string.native_ok else R.string.native_failed))
-                    }
-                }
-            }
+        // No screenshots, screen recording or recents thumbnails of vault contents.
+        // Debug builds only: E2E tests may lift it to capture screenshots.
+        if (!(BuildConfig.DEBUG && intent.getBooleanExtra(EXTRA_E2E_SCREENS, false))) {
+            window.setFlags(WindowManager.LayoutParams.FLAG_SECURE, WindowManager.LayoutParams.FLAG_SECURE)
         }
+        enableEdgeToEdge()
+        setContent {
+            CofferTheme { CofferNavHost(sessions.openIds, settings) }
+        }
+    }
+
+    companion object {
+        const val EXTRA_E2E_SCREENS = "e2e_screens"
     }
 }
