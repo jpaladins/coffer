@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 use crate::boot::{boot_region_len, parse_boot, BootInfo};
-use crate::dir::{parse_dir, ExEntry};
+use crate::dir::{parse_dir, DirLoc, ExEntry};
 use crate::fat::{chain_for_len, chain_until_end};
 use coffer_vfs::{names_equal, split_path, CofferError, DirEntry, Filesystem, FsKind, FsStats};
 use coffer_volume::BlockDevice;
@@ -19,18 +19,20 @@ const CHAIN_CACHE: usize = 16;
 /// Resolved paths kept; the filesystem is read-only, so entries stay valid.
 const PATH_CACHE: usize = 1024;
 
-/// Read-only exFAT filesystem.
+/// exFAT filesystem (read-only unless opened with `open_rw`).
 pub struct ExFatFs {
-    dev: Arc<dyn BlockDevice>,
-    boot: BootInfo,
+    pub(crate) dev: Arc<dyn BlockDevice>,
+    pub(crate) boot: BootInfo,
+    /// Allocation state for writing; None when read-only.
+    pub(crate) writer: Option<Mutex<crate::write::WriteState>>,
     /// Last resolved cluster chain (first cluster, length) -> clusters, so
     /// sequential reads of a FAT-chained file do not re-walk the FAT.
-    chain_cache: Mutex<Vec<CachedChain>>,
+    pub(crate) chain_cache: Mutex<Vec<CachedChain>>,
     /// Resolved paths, so each read does not re-read every parent directory.
-    path_cache: Mutex<HashMap<String, ExEntry>>,
+    pub(crate) path_cache: Mutex<HashMap<String, ExEntry>>,
 }
 
-enum Node {
+pub(crate) enum Node {
     Root,
     Entry(ExEntry),
 }
@@ -53,12 +55,13 @@ impl ExFatFs {
         Ok(Self {
             dev,
             boot,
+            writer: None,
             chain_cache: Mutex::new(Vec::new()),
             path_cache: Mutex::new(HashMap::new()),
         })
     }
 
-    fn chain(&self, e: &ExEntry) -> Result<Arc<Vec<u32>>, CofferError> {
+    pub(crate) fn chain(&self, e: &ExEntry) -> Result<Arc<Vec<u32>>, CofferError> {
         let key = (e.first_cluster, e.data_length);
         {
             let mut cache = self.chain_cache.lock().unwrap_or_else(|p| p.into_inner());
@@ -87,7 +90,7 @@ impl ExFatFs {
 
     /// Reads `buf.len()` bytes at `offset` of a cluster list (runs of
     /// consecutive clusters are read in one call).
-    fn read_clusters(
+    pub(crate) fn read_clusters(
         &self,
         clusters: &[u32],
         offset: u64,
@@ -117,7 +120,7 @@ impl ExFatFs {
         Ok(())
     }
 
-    fn dir_entries(&self, node: &Node, path: &str) -> Result<Vec<ExEntry>, CofferError> {
+    pub(crate) fn dir_entries(&self, node: &Node, path: &str) -> Result<Vec<ExEntry>, CofferError> {
         let (clusters, len) = match node {
             Node::Root => {
                 let c = chain_until_end(self.dev.as_ref(), &self.boot, self.boot.root_cluster)?;
@@ -141,10 +144,26 @@ impl ExFatFs {
         }
         let mut raw = vec![0u8; len as usize];
         self.read_clusters(&clusters, 0, &mut raw)?;
-        parse_dir(&raw)
+        let loc = match node {
+            Node::Root => DirLoc {
+                first: self.boot.root_cluster,
+                contiguous: false,
+                len,
+                is_root: true,
+            },
+            Node::Entry(e) => DirLoc {
+                first: e.first_cluster,
+                contiguous: e.no_fat_chain,
+                len,
+                is_root: false,
+            },
+        };
+        let mut entries = parse_dir(&raw)?;
+        entries.iter_mut().for_each(|e| e.parent = loc);
+        Ok(entries)
     }
 
-    fn resolve(&self, path: &str) -> Result<Node, CofferError> {
+    pub(crate) fn resolve(&self, path: &str) -> Result<Node, CofferError> {
         if let Some(e) = self
             .path_cache
             .lock()
@@ -267,6 +286,38 @@ impl Filesystem for ExFatFs {
         }
         buf[valid..].fill(0);
         Ok(want)
+    }
+
+    fn is_writable(&self) -> bool {
+        self.writer.is_some()
+    }
+
+    fn create_file(&self, path: &str) -> Result<(), CofferError> {
+        self.do_create(path, false)
+    }
+
+    fn mkdir(&self, path: &str) -> Result<(), CofferError> {
+        self.do_create(path, true)
+    }
+
+    fn write(&self, path: &str, offset: u64, data: &[u8]) -> Result<(), CofferError> {
+        self.do_write(path, offset, data)
+    }
+
+    fn set_len(&self, path: &str, len: u64) -> Result<(), CofferError> {
+        self.do_set_len(path, len)
+    }
+
+    fn remove(&self, path: &str) -> Result<(), CofferError> {
+        self.do_remove(path)
+    }
+
+    fn rename(&self, from: &str, to: &str) -> Result<(), CofferError> {
+        self.do_rename(from, to)
+    }
+
+    fn sync(&self) -> Result<(), CofferError> {
+        self.do_sync()
     }
 
     fn stats(&self) -> Result<FsStats, CofferError> {

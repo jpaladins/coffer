@@ -10,9 +10,26 @@ const TYPE_STREAM: u8 = 0xC0;
 const TYPE_NAME: u8 = 0xC1;
 const ATTR_DIRECTORY: u16 = 0x10;
 
+/// Where a directory's entries live (its own stream, or the root chain).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+pub struct DirLoc {
+    pub first: u32,
+    pub contiguous: bool,
+    pub len: u64,
+    pub is_root: bool,
+}
+
 /// A file or directory described by a File + Stream + FileName entry set.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ExEntry {
+    /// Index of the File entry within its directory, and its SecondaryCount.
+    pub slot: usize,
+    pub secondary: u8,
+    pub attrs: u16,
+    /// The File entry as stored (keeps create/access times on rewrite).
+    pub file_raw: [u8; 32],
+    /// The directory holding this entry (filled in by the caller).
+    pub parent: DirLoc,
     pub name: String,
     pub is_dir: bool,
     pub first_cluster: u32,
@@ -26,7 +43,7 @@ fn corrupted(msg: String) -> CofferError {
     CofferError::Corrupted(format!("exFAT directory: {msg}"))
 }
 
-fn set_checksum(set: &[u8]) -> u16 {
+pub(crate) fn set_checksum(set: &[u8]) -> u16 {
     let mut c: u16 = 0;
     for (i, b) in set.iter().enumerate() {
         if i == 2 || i == 3 {
@@ -83,7 +100,14 @@ fn parse_set(set: &[u8]) -> Result<ExEntry, CofferError> {
     if valid > data {
         return Err(corrupted("ValidDataLength > DataLength".into()));
     }
+    let mut file_raw = [0u8; 32];
+    file_raw.copy_from_slice(&set[..ENTRY]);
     Ok(ExEntry {
+        slot: 0,
+        secondary: set[1],
+        attrs,
+        file_raw,
+        parent: DirLoc::default(),
         name: String::from_utf16_lossy(&units),
         is_dir: attrs & ATTR_DIRECTORY != 0,
         first_cluster: le32(stream, 20),
@@ -108,7 +132,9 @@ pub fn parse_dir(raw: &[u8]) -> Result<Vec<ExEntry>, CofferError> {
                 if !(2..=18).contains(&secondary) || i + secondary >= slots {
                     return Err(corrupted(format!("bad SecondaryCount {secondary}")));
                 }
-                out.push(parse_set(&raw[i * ENTRY..(i + 1 + secondary) * ENTRY])?);
+                let mut e = parse_set(&raw[i * ENTRY..(i + 1 + secondary) * ENTRY])?;
+                e.slot = i;
+                out.push(e);
                 i += 1 + secondary;
             }
             // Unused entries, other primaries (bitmap, up-case, label, GUID)

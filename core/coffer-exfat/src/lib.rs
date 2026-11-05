@@ -7,8 +7,10 @@ mod dir;
 mod fat;
 mod fs;
 mod time;
+mod write;
 
 pub use boot::{parse_boot, BootInfo};
-pub use dir::{parse_dir, ExEntry};
+pub use dir::{parse_dir, DirLoc, ExEntry};
 pub use fat::{chain_for_len, chain_until_end};
 pub use fs::ExFatFs;
+pub use write::name_hash;

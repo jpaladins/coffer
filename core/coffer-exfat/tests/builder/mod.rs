@@ -107,6 +107,28 @@ impl Img {
         let bitmap = img.alloc(Layout::FatChain, 1)[0];
         let upcase = img.alloc(Layout::FatChain, 1)[0];
         let root = img.alloc(Layout::FatChain, 1)[0];
+        for c in [bitmap, upcase, root] {
+            let bit = (c - 2) as usize;
+            let o = img.cluster_offset(2) + bit / 8;
+            img.bytes[o] |= 1 << (bit % 8);
+        }
+        // Up-case table: 128 entries, identity except a-z -> A-Z.
+        let mut table = Vec::new();
+        for i in 0u16..128 {
+            let u = if (0x61..=0x7a).contains(&i) {
+                i - 0x20
+            } else {
+                i
+            };
+            table.extend_from_slice(&u.to_le_bytes());
+        }
+        let uo = img.cluster_offset(upcase);
+        img.bytes[uo..uo + table.len()].copy_from_slice(&table);
+        let mut tsum: u32 = 0;
+        for b in &table {
+            let h: u32 = if tsum & 1 != 0 { 0x8000_0000 } else { 0 };
+            tsum = h.wrapping_add(tsum >> 1).wrapping_add(u32::from(*b));
+        }
         img.bytes[96..100].copy_from_slice(&root.to_le_bytes());
         img.dirs.push(Dir {
             clusters: vec![root],
@@ -119,8 +141,9 @@ impl Img {
         img.push_slot(ROOT, &e);
         let mut e = [0u8; 32];
         e[0] = 0x82;
+        e[4..8].copy_from_slice(&tsum.to_le_bytes());
         e[20..24].copy_from_slice(&upcase.to_le_bytes());
-        e[24..32].copy_from_slice(&128u64.to_le_bytes());
+        e[24..32].copy_from_slice(&256u64.to_le_bytes());
         img.push_slot(ROOT, &e);
         img.seal_boot();
         img
@@ -151,6 +174,14 @@ impl Img {
         let step = if layout == Layout::Fragmented { 2 } else { 1 };
         let v: Vec<u32> = (0..n).map(|i| self.next_free + (i * step) as u32).collect();
         self.next_free += (n * step) as u32;
+        // Mark allocated clusters in the allocation bitmap (cluster 2).
+        if !self.dirs.is_empty() || v.first() != Some(&2) {
+            for c in &v {
+                let bit = (*c - 2) as usize;
+                let o = self.cluster_offset(2) + bit / 8;
+                self.bytes[o] |= 1 << (bit % 8);
+            }
+        }
         if layout != Layout::Contiguous {
             for w in v.windows(2) {
                 self.set_fat(w[0], w[1]);
