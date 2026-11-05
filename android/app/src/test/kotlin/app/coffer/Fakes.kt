@@ -82,6 +82,7 @@ class FakeNative(
 
 class FakeOpener : FdOpener {
     override fun openReadFd(uri: String) = 3
+    override fun openWriteFd(uri: String) = 4
     override fun readPrefix(uri: String, maxBytes: Int) = byteArrayOf(9)
 }
 

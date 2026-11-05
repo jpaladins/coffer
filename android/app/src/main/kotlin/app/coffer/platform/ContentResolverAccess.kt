@@ -21,6 +21,11 @@ class ContentResolverAccess(private val resolver: ContentResolver) : FdOpener, D
         resolver.openFileDescriptor(Uri.parse(uri), "r")?.detachFd()
             ?: throw FileNotFoundException(uri)
 
+    // "rw", never "w": some providers truncate on "w".
+    override fun openWriteFd(uri: String): Int =
+        resolver.openFileDescriptor(Uri.parse(uri), "rw")?.detachFd()
+            ?: throw FileNotFoundException(uri)
+
     override fun readPrefix(uri: String, maxBytes: Int): ByteArray {
         val input = resolver.openInputStream(Uri.parse(uri)) ?: throw FileNotFoundException(uri)
         return input.use {
@@ -42,7 +47,7 @@ class ContentResolverAccess(private val resolver: ContentResolver) : FdOpener, D
         try {
             resolver.takePersistableUriPermission(u, rw)
         } catch (_: SecurityException) {
-            // Read-only providers grant no write access; read is enough until P4.
+            // Read-only providers grant no write access: the vault opens read-only.
             resolver.takePersistableUriPermission(u, Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }
     }

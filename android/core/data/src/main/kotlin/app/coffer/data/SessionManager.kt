@@ -16,17 +16,26 @@ import kotlinx.coroutines.withContext
 interface FdOpener {
     /** Returns a detached, read-only file descriptor the caller now owns. */
     fun openReadFd(uri: String): Int
+    /** Like [openReadFd] but read-write; throws if the document is not writable. */
+    fun openWriteFd(uri: String): Int
     /** First [maxBytes] bytes of a document (keyfiles). */
     fun readPrefix(uri: String, maxBytes: Int): ByteArray
 }
 
-/** [password] is wiped by [SessionManager.unlock]; callers must not reuse it. */
+/**
+ * [password] and [hiddenPassword] are wiped by [SessionManager.unlock];
+ * callers must not reuse them. With [writable], a document that cannot be
+ * opened for writing falls back to read-only ([VolumeInfo.writable] tells).
+ */
 class UnlockRequest(
     val password: CharArray,
     val pim: Int,
     val keyfileUris: List<String>,
     val prf: String?,
     val tryBackupHeaders: Boolean = false,
+    val writable: Boolean = false,
+    /** Protects the hidden volume inside this (outer) one from writes. */
+    val hiddenPassword: CharArray? = null,
 )
 
 /**
@@ -86,21 +95,33 @@ class SessionManager(
             inFlight += cancel
             val password = req.password.toUtf8Bytes()
             req.password.fill('\u0000')
+            val hidden = req.hiddenPassword?.let { h -> h.toUtf8Bytes().also { h.fill('\u0000') } }
             val keyfiles = mutableListOf<ByteArray>()
             try {
                 req.keyfileUris.forEach { keyfiles += platform { opener.readPrefix(it, KEYFILE_MAX) } }
-                val fd = platform { opener.openReadFd(ref.uri) }
-                val creds = NativeCredentials(
-                    password, req.pim, keyfiles, req.prf ?: ref.lastPrf, maxKdfMemory(), req.tryBackupHeaders,
+                var writable = req.writable
+                fun fd(): Int {
+                    if (writable) {
+                        try {
+                            return opener.openWriteFd(ref.uri)
+                        } catch (_: Exception) {
+                            writable = false // read-only file or provider
+                        }
+                    }
+                    return platform { opener.openReadFd(ref.uri) }
+                }
+                fun creds(prf: String?) = NativeCredentials(
+                    password, req.pim, keyfiles, prf, maxKdfMemory(), req.tryBackupHeaders,
+                    writable, if (writable) hidden else null,
                 )
                 val handle = try {
-                    native.open(fd, creds, cancel)
+                    val first = fd()
+                    native.open(first, creds(req.prf ?: ref.lastPrf), cancel)
                 } catch (e: CofferException.WrongCredentials) {
                     // A remembered KDF may be stale (volume re-keyed): retry with detection.
                     if (req.prf == null && ref.lastPrf != null) {
-                        native.open(platform { opener.openReadFd(ref.uri) }, NativeCredentials(
-                            password, req.pim, keyfiles, null, maxKdfMemory(), req.tryBackupHeaders,
-                        ), cancel)
+                        val again = fd()
+                        native.open(again, creds(null), cancel)
                     } else {
                         throw e
                     }
@@ -120,6 +141,7 @@ class SessionManager(
             } finally {
                 inFlight -= cancel
                 password.fill(0)
+                hidden?.fill(0)
                 keyfiles.forEach { it.fill(0) }
             }
         }

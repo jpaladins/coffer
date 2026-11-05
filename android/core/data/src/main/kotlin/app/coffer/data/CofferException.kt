@@ -18,6 +18,13 @@ sealed class CofferException(message: String) : Exception(message) {
     class Closed : CofferException("vault is locked")
     /** The SAF grant was revoked or the file moved/deleted. */
     class PermissionLost(val detail: String) : CofferException(detail)
+    /** The write would touch the protected hidden volume; nothing was written. */
+    class HiddenVolumeProtected : CofferException("write blocked to protect the hidden volume")
+    class NoSpace : CofferException("no space left in the volume")
+    class AlreadyExists(val path: String) : CofferException(path)
+    class NotEmpty(val path: String) : CofferException(path)
+    /** Opened read-only (by choice, or the file/provider is not writable). */
+    class ReadOnly : CofferException("volume is read-only")
 }
 
 internal fun FfiException.toCoffer(): CofferException = when (this) {
@@ -32,4 +39,9 @@ internal fun FfiException.toCoffer(): CofferException = when (this) {
     is FfiException.InvalidPath -> CofferException.InvalidPath(path)
     is FfiException.Io -> CofferException.Io(detail)
     is FfiException.Closed -> CofferException.Closed()
+    is FfiException.HiddenVolumeProtected -> CofferException.HiddenVolumeProtected()
+    is FfiException.NoSpace -> CofferException.NoSpace()
+    is FfiException.AlreadyExists -> CofferException.AlreadyExists(path)
+    is FfiException.NotEmpty -> CofferException.NotEmpty(path)
+    is FfiException.ReadOnly -> CofferException.ReadOnly()
 }

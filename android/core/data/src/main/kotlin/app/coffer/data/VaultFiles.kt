@@ -1,0 +1,89 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+package app.coffer.data
+
+import java.io.InputStream
+
+/** Size of each native write while importing. */
+const val IMPORT_CHUNK = 1 shl 20
+
+fun childPath(dir: String, name: String): String = if (dir == "/") "/$name" else "$dir/$name"
+
+/** True when [path] exists (lookup is case-insensitive on FAT/exFAT). */
+fun VaultHandle.exists(path: String): Boolean = try {
+    stat(path)
+    true
+} catch (_: CofferException.NotFound) {
+    false
+}
+
+/** [name] if free in [dir], else "name (1).ext", "name (2).ext", ... */
+fun VaultHandle.uniqueName(dir: String, name: String): String {
+    if (!exists(childPath(dir, name))) return name
+    val dot = name.lastIndexOf('.').takeIf { it > 0 } ?: name.length
+    val base = name.substring(0, dot)
+    val ext = name.substring(dot)
+    var i = 1
+    while (true) {
+        val candidate = "$base ($i)$ext"
+        if (!exists(childPath(dir, candidate))) return candidate
+        i++
+    }
+}
+
+/**
+ * Copies [input] into the new file [path] in [IMPORT_CHUNK] writes. On any
+ * failure, cancellation included, the partial file is removed (best effort)
+ * so the volume never keeps a truncated copy. Returns the bytes written.
+ */
+fun VaultHandle.importStream(
+    path: String,
+    input: InputStream,
+    isActive: () -> Boolean = { true },
+    onProgress: (Long) -> Unit = {},
+): Long {
+    createFile(path)
+    val buf = ByteArray(IMPORT_CHUNK)
+    var written = 0L
+    try {
+        while (true) {
+            if (!isActive()) throw CofferException.Cancelled()
+            val n = input.readFully(buf)
+            if (n <= 0) break
+            if (n == buf.size) {
+                write(path, written, buf)
+            } else {
+                val tail = buf.copyOf(n)
+                write(path, written, tail)
+                tail.fill(0)
+            }
+            written += n
+            onProgress(written)
+        }
+        sync()
+        return written
+    } catch (e: Throwable) {
+        runCatching { remove(path) }
+        throw e
+    } finally {
+        buf.fill(0)
+    }
+}
+
+/** Fills [buf] unless the stream ends first (InputStream.readNBytes needs API 33). */
+private fun InputStream.readFully(buf: ByteArray): Int {
+    var off = 0
+    while (off < buf.size) {
+        val n = read(buf, off, buf.size - off)
+        if (n < 0) break
+        off += n
+    }
+    return off
+}
+
+/** Removes [path]; a directory is emptied first, depth first. */
+fun VaultHandle.removeRecursive(path: String) {
+    if (stat(path).isDir) {
+        list(path).forEach { removeRecursive(childPath(path, it.name)) }
+    }
+    remove(path)
+}

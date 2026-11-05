@@ -6,8 +6,10 @@ import app.coffer.ffi.FfiOpenOptions
 import app.coffer.ffi.FfiException
 import app.coffer.ffi.FfiVault
 import app.coffer.ffi.openFdSecret
+import app.coffer.ffi.setLocalOffsetMinutes
 import com.sun.jna.Memory
 import com.sun.jna.Pointer
+import java.util.TimeZone
 
 data class Entry(val name: String, val isDir: Boolean, val size: Long, val modified: Long?)
 
@@ -18,6 +20,8 @@ data class VolumeInfo(
     val usedBackupHeader: Boolean,
     val fsKind: String,
     val size: Long,
+    val writable: Boolean = false,
+    val hiddenProtected: Boolean = false,
 )
 
 /** Secrets are zeroed by the caller right after [NativeVaults.open] returns. */
@@ -28,6 +32,10 @@ class NativeCredentials(
     val prf: String?,
     val maxKdfMemory: Long,
     val tryBackupHeaders: Boolean,
+    /** Mount read-write; [fd] must then be open for writing. */
+    val writable: Boolean = false,
+    /** Password of the hidden volume to protect while writing to the outer one. */
+    val hiddenPassword: ByteArray? = null,
 )
 
 interface CancelSignal {
@@ -41,7 +49,21 @@ interface VaultHandle {
     fun stat(path: String): Entry
     fun read(path: String, offset: Long, len: Int): ByteArray
     fun lock()
+
+    // Writes fail with ReadOnly unless the volume was opened writable.
+    fun createFile(path: String): Unit = throw CofferException.ReadOnly()
+    fun mkdir(path: String): Unit = throw CofferException.ReadOnly()
+    /** At most [MAX_IO] bytes per call; grows the file as needed. */
+    fun write(path: String, offset: Long, data: ByteArray): Unit = throw CofferException.ReadOnly()
+    fun setLen(path: String, len: Long): Unit = throw CofferException.ReadOnly()
+    /** Removes a file or an empty directory. */
+    fun remove(path: String): Unit = throw CofferException.ReadOnly()
+    fun rename(from: String, to: String): Unit = throw CofferException.ReadOnly()
+    fun sync() {}
 }
+
+/** Largest read/write the native layer accepts in one call. */
+const val MAX_IO = 4 shl 20
 
 /** Seam over the Rust core, so the data layer is testable on the JVM. */
 interface NativeVaults {
@@ -67,14 +89,26 @@ class FfiNativeVaults : NativeVaults {
         // Secrets go through native memory we own and wipe, never through a
         // UniFFI record (its buffers are freed without being zeroed).
         val secret = secretBlob(creds.password, creds.keyfiles)
+        val hidden = creds.hiddenPassword?.let { secretBlob(it, emptyList()) }
         try {
             val vault = native {
-                openFdSecret(fd, false, Pointer.nativeValue(secret).toULong(), secret.size().toULong(), options, (cancel as Cancel).ffi)
+                openFdSecret(
+                    fd,
+                    creds.writable,
+                    Pointer.nativeValue(secret).toULong(),
+                    secret.size().toULong(),
+                    hidden?.let { Pointer.nativeValue(it).toULong() } ?: 0UL,
+                    hidden?.size()?.toULong() ?: 0UL,
+                    options,
+                    (cancel as Cancel).ffi,
+                )
             }
             return FfiHandle(vault)
         } finally {
-            secret.clear()
-            secret.close()
+            for (m in listOfNotNull(secret, hidden)) {
+                m.clear()
+                m.close()
+            }
         }
     }
 }
@@ -119,8 +153,24 @@ private inline fun <T> native(block: () -> T): T =
 
 private class FfiHandle(private val vault: FfiVault) : VaultHandle {
     override val info: VolumeInfo = vault.info().let {
-        VolumeInfo(it.cipher, it.prf, it.hidden, it.usedBackupHeader, it.fsKind, it.size.toLong())
+        VolumeInfo(
+            it.cipher, it.prf, it.hidden, it.usedBackupHeader, it.fsKind, it.size.toLong(),
+            it.writable, it.hiddenProtected,
+        )
     }
+
+    override fun createFile(path: String) = native { clock(); vault.createFile(path) }
+    override fun mkdir(path: String) = native { clock(); vault.mkdir(path) }
+    override fun write(path: String, offset: Long, data: ByteArray) =
+        native { clock(); vault.write(path, offset.toULong(), data) }
+    override fun setLen(path: String, len: Long) = native { clock(); vault.setLen(path, len.toULong()) }
+    override fun remove(path: String) = native { vault.remove(path) }
+    override fun rename(from: String, to: String) = native { clock(); vault.rename(from, to) }
+
+    /** FAT stores local time: keep the native offset current (time zone, DST). */
+    private fun clock() =
+        setLocalOffsetMinutes(TimeZone.getDefault().getOffset(System.currentTimeMillis()) / 60_000)
+    override fun sync() = native { vault.sync() }
 
     override fun list(path: String) = native { vault.list(path) }.map {
         Entry(it.name, it.isDir, it.size.toLong(), it.modified)

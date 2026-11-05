@@ -36,12 +36,18 @@ class FakeNative(private val password: String) : NativeVaults {
     }
 }
 
-class FakeOpener(private val fail: Exception? = null) : FdOpener {
+class FakeOpener(private val fail: Exception? = null, private val writable: Boolean = true) : FdOpener {
     var opened = 0
+    var openedWrite = 0
     override fun openReadFd(uri: String): Int {
         fail?.let { throw it }
         opened++
         return 42
+    }
+    override fun openWriteFd(uri: String): Int {
+        if (!writable) throw SecurityException("read-only provider")
+        openedWrite++
+        return 43
     }
     override fun readPrefix(uri: String, maxBytes: Int) = byteArrayOf(1, 2, 3)
 }
@@ -184,6 +190,52 @@ class SessionManagerTest {
         assertTrue(result.get() is CofferException.Cancelled)
         assertTrue(handle.locked)
         assertTrue(sm.openIds.value.isEmpty())
+    }
+
+    @Test
+    fun writable_unlock_opens_rw_and_passes_hidden_password() = runTest {
+        val native = FakeNative("secret")
+        val opener = FakeOpener()
+        val sm = SessionManager(FakeStore(), native, opener, StandardTestDispatcher(testScheduler), { 1L shl 30 })
+        val hidden = "hid".toCharArray()
+        sm.unlock(ref, UnlockRequest("secret".toCharArray(), 0, emptyList(), null, writable = true, hiddenPassword = hidden), sm.newCancel())
+        val c = native.lastCreds!!
+        assertTrue(c.writable)
+        assertEquals(1, opener.openedWrite)
+        assertEquals(0, opener.opened)
+        assertTrue(c.hiddenPassword!!.all { it == 0.toByte() })
+        assertTrue(hidden.all { it == '\u0000' })
+    }
+
+    @Test
+    fun not_writable_document_falls_back_to_read_only() = runTest {
+        val native = FakeNative("secret")
+        val opener = FakeOpener(writable = false)
+        val sm = SessionManager(FakeStore(), native, opener, StandardTestDispatcher(testScheduler), { 1L shl 30 })
+        val hidden = "hid".toCharArray()
+        sm.unlock(ref, UnlockRequest("secret".toCharArray(), 0, emptyList(), null, writable = true, hiddenPassword = hidden), sm.newCancel())
+        val c = native.lastCreds!!
+        assertTrue(!c.writable)
+        assertNull(c.hiddenPassword)
+        assertEquals(1, opener.opened)
+        assertTrue(hidden.all { it == '\u0000' })
+    }
+
+    @Test
+    fun read_only_request_never_opens_for_writing() = runTest {
+        val opener = FakeOpener()
+        val sm = SessionManager(FakeStore(), FakeNative("secret"), opener, StandardTestDispatcher(testScheduler), { 1L shl 30 })
+        sm.unlock(ref, req("secret"), sm.newCancel())
+        assertEquals(0, opener.openedWrite)
+    }
+
+    @Test
+    fun new_native_errors_are_mapped() {
+        assertTrue(mapNativeError(app.coffer.ffi.FfiException.NoSpace()) is CofferException.NoSpace)
+        assertTrue(mapNativeError(app.coffer.ffi.FfiException.ReadOnly()) is CofferException.ReadOnly)
+        assertTrue(mapNativeError(app.coffer.ffi.FfiException.HiddenVolumeProtected()) is CofferException.HiddenVolumeProtected)
+        assertEquals("/a", (mapNativeError(app.coffer.ffi.FfiException.AlreadyExists("/a")) as CofferException.AlreadyExists).path)
+        assertEquals("/d", (mapNativeError(app.coffer.ffi.FfiException.NotEmpty("/d")) as CofferException.NotEmpty).path)
     }
 
     @Test
