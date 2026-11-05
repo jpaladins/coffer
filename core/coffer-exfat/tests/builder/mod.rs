@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //! Test-only exFAT image builder, written from the Microsoft exFAT
 //! specification. 512-byte sectors, one FAT.
-#![allow(dead_code)]
+#![allow(dead_code, clippy::too_many_arguments)]
 
 pub const BPS: usize = 512;
 

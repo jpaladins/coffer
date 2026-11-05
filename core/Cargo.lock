@@ -139,6 +139,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "coffer-fs"
+version = "0.1.0"
+dependencies = [
+ "coffer-crypto",
+ "coffer-exfat",
+ "coffer-fat",
+ "coffer-vfs",
+ "coffer-volume",
+ "serde_json",
+ "sha2",
+ "zeroize",
+]
+
+[[package]]
 name = "coffer-vfs"
 version = "0.1.0"
 dependencies = [

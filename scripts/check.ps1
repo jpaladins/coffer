@@ -15,6 +15,7 @@ try {
     Step 'licenses' { cargo deny check licenses }
     if ($env:COFFER_CORPUS) {
         Step 'corpus' { cargo test -p coffer-volume --release --test corpus -- --ignored --nocapture }
+        Step 'corpus-fs' { cargo test -p coffer-fs --release --test corpus_content -- --ignored --nocapture }
     } else {
         Write-Host '!!! COFFER_CORPUS non impostata: test sul corpus reale SALTATI !!!' -ForegroundColor Yellow
     }
