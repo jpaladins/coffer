@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-use crate::io::VolumeIo;
+use crate::io::{SectorCache, VolumeIo};
 use coffer_vfs::{names_equal, split_path, CofferError, DirEntry, Filesystem, FsKind, FsStats};
 use coffer_volume::BlockDevice;
 use std::io::{Read, Seek, SeekFrom};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 type Fs = fatfs::FileSystem<VolumeIo>;
 type FatEntry<'a> = fatfs::DirEntry<'a, VolumeIo>;
@@ -20,7 +20,11 @@ const META_BUDGET: u64 = 64 * 1024 * 1024;
 pub struct FatFs {
     dev: Arc<dyn BlockDevice>,
     kind: FsKind,
+    cache: Arc<Mutex<SectorCache>>,
 }
+
+/// 8192 sectors = 4 MiB of decrypted metadata and small-cluster cache.
+const CACHE_SECTORS: usize = 8192;
 
 fn corrupted(e: impl std::fmt::Display) -> CofferError {
     let msg = e.to_string();
@@ -33,22 +37,30 @@ fn corrupted(e: impl std::fmt::Display) -> CofferError {
 
 impl FatFs {
     pub fn open(dev: Arc<dyn BlockDevice>) -> Result<Self, CofferError> {
-        let fs = Self::mount(&dev, META_BUDGET)?;
+        let cache = Arc::new(Mutex::new(SectorCache::new(CACHE_SECTORS)));
+        let fs = Self::mount(&dev, META_BUDGET, &cache)?;
         let kind = match fs.fat_type() {
             fatfs::FatType::Fat12 => FsKind::Fat12,
             fatfs::FatType::Fat16 => FsKind::Fat16,
             fatfs::FatType::Fat32 => FsKind::Fat32,
         };
-        Ok(Self { dev, kind })
+        Ok(Self { dev, kind, cache })
     }
 
-    fn mount(dev: &Arc<dyn BlockDevice>, budget: u64) -> Result<Fs, CofferError> {
-        fatfs::FileSystem::new(VolumeIo::new(dev.clone(), budget), fatfs::FsOptions::new())
-            .map_err(corrupted)
+    fn mount(
+        dev: &Arc<dyn BlockDevice>,
+        budget: u64,
+        cache: &Arc<Mutex<SectorCache>>,
+    ) -> Result<Fs, CofferError> {
+        fatfs::FileSystem::new(
+            VolumeIo::new(dev.clone(), budget, cache.clone()),
+            fatfs::FsOptions::new(),
+        )
+        .map_err(corrupted)
     }
 
     fn lock(&self) -> Result<Fs, CofferError> {
-        Self::mount(&self.dev, META_BUDGET)
+        Self::mount(&self.dev, META_BUDGET, &self.cache)
     }
 }
 
@@ -159,7 +171,11 @@ impl Filesystem for FatFs {
     }
 
     fn read(&self, path: &str, offset: u64, buf: &mut [u8]) -> Result<usize, CofferError> {
-        let fs = Self::mount(&self.dev, META_BUDGET.saturating_add(buf.len() as u64))?;
+        let fs = Self::mount(
+            &self.dev,
+            META_BUDGET.saturating_add(buf.len() as u64),
+            &self.cache,
+        )?;
         let e = match resolve(&fs, path)? {
             Node::Root => return Err(CofferError::IsADirectory(path.to_string())),
             Node::Entry(e) if e.is_dir() => {
@@ -170,13 +186,18 @@ impl Filesystem for FatFs {
         if offset >= e.len() || buf.is_empty() {
             return Ok(0);
         }
+        let short = || CofferError::Corrupted("FAT: cluster chain shorter than file size".into());
         let mut f = e.to_file();
-        f.seek(SeekFrom::Start(offset)).map_err(corrupted)?;
-        let want = buf.len().min((e.len() - offset) as usize);
+        // fatfs clamps a seek to the end of the chain instead of failing.
+        if f.seek(SeekFrom::Start(offset)).map_err(corrupted)? != offset {
+            return Err(short());
+        }
+        // Clamp in u64 before narrowing: usize is 32-bit on armeabi-v7a.
+        let want = (buf.len() as u64).min(e.len() - offset) as usize;
         let mut done = 0;
         while done < want {
             match f.read(&mut buf[done..want]).map_err(corrupted)? {
-                0 => break,
+                0 => return Err(short()),
                 n => done += n,
             }
         }
@@ -185,7 +206,7 @@ impl Filesystem for FatFs {
 
     fn stats(&self) -> Result<FsStats, CofferError> {
         // Counting free clusters reads the whole FAT.
-        let fs = Self::mount(&self.dev, self.dev.len())?;
+        let fs = Self::mount(&self.dev, self.dev.len(), &self.cache)?;
         let s = fs.stats().map_err(corrupted)?;
         let cs = u64::from(s.cluster_size());
         Ok(FsStats {

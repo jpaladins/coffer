@@ -4,6 +4,7 @@ use crate::dir::{parse_dir, ExEntry};
 use crate::fat::{chain_for_len, chain_until_end};
 use coffer_vfs::{names_equal, split_path, CofferError, DirEntry, Filesystem, FsKind, FsStats};
 use coffer_volume::BlockDevice;
+use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
 /// Spec: a directory is at most 256 MiB.
@@ -13,6 +14,10 @@ const MAX_DEPTH: usize = 255;
 
 /// (first cluster, data length) and the clusters of that chain.
 type CachedChain = ((u32, u64), Arc<Vec<u32>>);
+/// Chains kept (directories of the current path plus open files).
+const CHAIN_CACHE: usize = 16;
+/// Resolved paths kept; the filesystem is read-only, so entries stay valid.
+const PATH_CACHE: usize = 1024;
 
 /// Read-only exFAT filesystem.
 pub struct ExFatFs {
@@ -20,7 +25,9 @@ pub struct ExFatFs {
     boot: BootInfo,
     /// Last resolved cluster chain (first cluster, length) -> clusters, so
     /// sequential reads of a FAT-chained file do not re-walk the FAT.
-    chain_cache: Mutex<Option<CachedChain>>,
+    chain_cache: Mutex<Vec<CachedChain>>,
+    /// Resolved paths, so each read does not re-read every parent directory.
+    path_cache: Mutex<HashMap<String, ExEntry>>,
 }
 
 enum Node {
@@ -46,18 +53,23 @@ impl ExFatFs {
         Ok(Self {
             dev,
             boot,
-            chain_cache: Mutex::new(None),
+            chain_cache: Mutex::new(Vec::new()),
+            path_cache: Mutex::new(HashMap::new()),
         })
     }
 
     fn chain(&self, e: &ExEntry) -> Result<Arc<Vec<u32>>, CofferError> {
         let key = (e.first_cluster, e.data_length);
-        let mut cache = self.chain_cache.lock().unwrap_or_else(|p| p.into_inner());
-        if let Some((k, v)) = cache.as_ref() {
-            if *k == key {
-                return Ok(v.clone());
+        {
+            let mut cache = self.chain_cache.lock().unwrap_or_else(|p| p.into_inner());
+            if let Some(i) = cache.iter().position(|(k, _)| *k == key) {
+                let hit = cache.remove(i);
+                let v = hit.1.clone();
+                cache.push(hit);
+                return Ok(v);
             }
         }
+        // Walk the FAT outside the lock so readers do not serialise.
         let v = Arc::new(chain_for_len(
             self.dev.as_ref(),
             &self.boot,
@@ -65,7 +77,11 @@ impl ExFatFs {
             e.no_fat_chain,
             e.data_length,
         )?);
-        *cache = Some((key, v.clone()));
+        let mut cache = self.chain_cache.lock().unwrap_or_else(|p| p.into_inner());
+        if cache.len() >= CHAIN_CACHE {
+            cache.remove(0);
+        }
+        cache.push((key, v.clone()));
         Ok(v)
     }
 
@@ -90,7 +106,8 @@ impl ExFatFs {
                 run += 1;
             }
             let in_run = run as u64 * cs - pos % cs;
-            let n = (buf.len() - done).min(in_run as usize);
+            // Clamp in u64 before narrowing: usize is 32-bit on armeabi-v7a.
+            let n = ((buf.len() - done) as u64).min(in_run) as usize;
             self.dev.read_at(
                 self.boot.cluster_offset(first) + pos % cs,
                 &mut buf[done..done + n],
@@ -107,7 +124,14 @@ impl ExFatFs {
                 let len = c.len() as u64 * self.boot.cluster_size();
                 (Arc::new(c), len)
             }
-            Node::Entry(e) if e.is_dir => (self.chain(e)?, e.data_length),
+            Node::Entry(e) if e.is_dir => {
+                if e.data_length > MAX_DIR_BYTES {
+                    return Err(CofferError::Corrupted(
+                        "exFAT: directory larger than 256 MiB".into(),
+                    ));
+                }
+                (self.chain(e)?, e.data_length)
+            }
             Node::Entry(_) => return Err(CofferError::NotADirectory(path.to_string())),
         };
         if len > MAX_DIR_BYTES {
@@ -121,6 +145,26 @@ impl ExFatFs {
     }
 
     fn resolve(&self, path: &str) -> Result<Node, CofferError> {
+        if let Some(e) = self
+            .path_cache
+            .lock()
+            .unwrap_or_else(|p| p.into_inner())
+            .get(path)
+        {
+            return Ok(Node::Entry(e.clone()));
+        }
+        let node = self.resolve_uncached(path)?;
+        if let Node::Entry(e) = &node {
+            let mut cache = self.path_cache.lock().unwrap_or_else(|p| p.into_inner());
+            if cache.len() >= PATH_CACHE {
+                cache.clear();
+            }
+            cache.insert(path.to_string(), e.clone());
+        }
+        Ok(node)
+    }
+
+    fn resolve_uncached(&self, path: &str) -> Result<Node, CofferError> {
         let parts = split_path(path)?;
         if parts.len() > MAX_DEPTH {
             return Err(CofferError::InvalidPath(format!(
@@ -212,7 +256,8 @@ impl Filesystem for ExFatFs {
         if offset >= e.data_length || buf.is_empty() {
             return Ok(0);
         }
-        let want = buf.len().min((e.data_length - offset) as usize);
+        // Clamp in u64 before narrowing: usize is 32-bit on armeabi-v7a.
+        let want = (buf.len() as u64).min(e.data_length - offset) as usize;
         let buf = &mut buf[..want];
         // Bytes at or beyond ValidDataLength read as zero (spec §7.6.4).
         let valid = e.valid_data_length.saturating_sub(offset).min(want as u64) as usize;
@@ -227,11 +272,16 @@ impl Filesystem for ExFatFs {
     fn stats(&self) -> Result<FsStats, CofferError> {
         let cs = self.boot.cluster_size();
         let total = u64::from(self.boot.cluster_count) * cs;
+        // One bit per cluster; the on-disk DataLength is only checked to be
+        // large enough and never used to size a buffer.
+        let bm_len = u64::from(self.boot.cluster_count).div_ceil(8);
         let free = match self.bitmap()? {
-            Some((first, len)) if len >= u64::from(self.boot.cluster_count).div_ceil(8) => {
-                let chain = chain_until_end(self.dev.as_ref(), &self.boot, first)
-                    .or_else(|_| chain_for_len(self.dev.as_ref(), &self.boot, first, true, len))?;
-                let mut raw = vec![0u8; len as usize];
+            Some((first, len)) if len >= bm_len => {
+                let chain = chain_for_len(self.dev.as_ref(), &self.boot, first, false, bm_len)
+                    .or_else(|_| {
+                        chain_for_len(self.dev.as_ref(), &self.boot, first, true, bm_len)
+                    })?;
+                let mut raw = vec![0u8; bm_len as usize];
                 self.read_clusters(&chain, 0, &mut raw)?;
                 let n = self.boot.cluster_count as usize;
                 let used = (0..n).filter(|i| raw[i / 8] & (1 << (i % 8)) != 0).count() as u64;

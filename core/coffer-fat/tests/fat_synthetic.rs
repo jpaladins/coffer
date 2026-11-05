@@ -211,3 +211,95 @@ fn cyclic_root_dir_chain_is_corrupted() {
     assert!(matches!(fs.list("/"), Err(CofferError::Corrupted(_))));
     assert!(t.elapsed() < std::time::Duration::from_secs(10));
 }
+
+struct Counting {
+    inner: MemDevice,
+    calls: std::sync::atomic::AtomicU64,
+}
+impl BlockDevice for Counting {
+    fn read_at(&self, off: u64, buf: &mut [u8]) -> Result<(), CofferError> {
+        self.calls
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        self.inner.read_at(off, buf)
+    }
+    fn write_at(&self, off: u64, buf: &[u8]) -> Result<(), CofferError> {
+        self.inner.write_at(off, buf)
+    }
+    fn len(&self) -> u64 {
+        self.inner.len()
+    }
+    fn flush(&self) -> Result<(), CofferError> {
+        Ok(())
+    }
+}
+
+/// Sequential reads must not re-walk the whole FAT chain from the device on
+/// every call (quadratic in file size).
+#[test]
+fn sequential_reads_are_not_quadratic() {
+    let mut cur = Cursor::new(vec![0u8; 64 * 1024 * 1024]);
+    fatfs::format_volume(
+        &mut cur,
+        fatfs::FormatVolumeOptions::new()
+            .fat_type(fatfs::FatType::Fat32)
+            .bytes_per_cluster(512),
+    )
+    .unwrap();
+    let data = payload(2 * 1024 * 1024); // 4096 clusters
+    {
+        let fs = fatfs::FileSystem::new(&mut cur, fatfs::FsOptions::new()).unwrap();
+        fs.root_dir()
+            .create_file("big.bin")
+            .unwrap()
+            .write_all(&data)
+            .unwrap();
+    }
+    let c = Arc::new(Counting {
+        inner: MemDevice::new(cur.into_inner()),
+        calls: Default::default(),
+    });
+    let fs = FatFs::open(c.clone()).unwrap();
+    let mut buf = vec![0u8; 64 * 1024];
+    let mut off = 0u64;
+    while off < data.len() as u64 {
+        let n = fs.read("/big.bin", off, &mut buf).unwrap();
+        assert_eq!(&buf[..n], &data[off as usize..off as usize + n]);
+        off += n as u64;
+    }
+    let calls = c.calls.load(std::sync::atomic::Ordering::Relaxed);
+    assert!(calls < 20_000, "{calls} device reads for a 2 MiB file");
+}
+
+/// A directory entry claiming more bytes than its cluster chain holds must
+/// be reported, not silently truncated.
+#[test]
+fn chain_shorter_than_size_is_corrupted() {
+    let mut cur = Cursor::new(vec![0u8; 16 * 1024 * 1024]);
+    fatfs::format_volume(
+        &mut cur,
+        fatfs::FormatVolumeOptions::new().fat_type(fatfs::FatType::Fat16),
+    )
+    .unwrap();
+    {
+        let fs = fatfs::FileSystem::new(&mut cur, fatfs::FsOptions::new()).unwrap();
+        fs.root_dir()
+            .create_file("SHORT.BIN")
+            .unwrap()
+            .write_all(&payload(100))
+            .unwrap();
+    }
+    let mut img = cur.into_inner();
+    // Find the 8.3 entry "SHORT   BIN" and inflate its size field (offset 28).
+    let pos = img.windows(11).position(|w| w == b"SHORT   BIN").unwrap();
+    img[pos + 28..pos + 32].copy_from_slice(&1_000_000u32.to_le_bytes());
+    let fs = FatFs::open(Arc::new(MemDevice::new(img))).unwrap();
+    let mut b = vec![0u8; 4096];
+    assert!(matches!(
+        fs.read("/SHORT.BIN", 500_000, &mut b),
+        Err(CofferError::Corrupted(_))
+    ));
+    assert!(matches!(
+        fs.read("/SHORT.BIN", 0, &mut vec![0u8; 200_000]),
+        Err(CofferError::Corrupted(_))
+    ));
+}

@@ -267,3 +267,67 @@ fn hostile_boot_bytes_do_not_panic() {
     }
     let _ = parse_boot(&img.bytes[..12 * BPS]);
 }
+
+// ---- Final review regressions ----
+
+/// Device wrapper counting bytes read, to catch quadratic read paths.
+struct Counting {
+    inner: MemDevice,
+    bytes: std::sync::atomic::AtomicU64,
+}
+impl BlockDevice for Counting {
+    fn read_at(&self, off: u64, buf: &mut [u8]) -> Result<(), CofferError> {
+        self.bytes
+            .fetch_add(buf.len() as u64, std::sync::atomic::Ordering::Relaxed);
+        self.inner.read_at(off, buf)
+    }
+    fn write_at(&self, off: u64, buf: &[u8]) -> Result<(), CofferError> {
+        self.inner.write_at(off, buf)
+    }
+    fn len(&self) -> u64 {
+        self.inner.len()
+    }
+    fn flush(&self) -> Result<(), CofferError> {
+        Ok(())
+    }
+}
+
+#[test]
+fn hostile_bitmap_length_does_not_crash_stats() {
+    let mut img = Img::new(512, 3);
+    let o = img.cluster_offset(4) + 24; // bitmap entry DataLength (slot 0 of root)
+    img.bytes[o..o + 8].copy_from_slice(&u64::MAX.to_le_bytes());
+    let fs = ExFatFs::open(dev(img)).unwrap();
+    let _ = fs.stats(); // Ok or Err, but no panic / abort
+}
+
+#[test]
+fn repeated_reads_in_subdirectory_do_not_reread_directories() {
+    let mut img = Img::new(4096, 1); // 1 KiB clusters
+    let d = img.add_dir(ROOT, "DCIM", 200); // 200 KiB directory
+    for i in 0..1500 {
+        img.add_file(d, &format!("IMG_{i:05}.jpg"), b"", Layout::Contiguous);
+    }
+    let data = payload(100 * 1024, 9);
+    img.add_file(d, "target.bin", &data, Layout::Fragmented);
+    let c = Arc::new(Counting {
+        inner: MemDevice::new(img.bytes),
+        bytes: Default::default(),
+    });
+    let fs = ExFatFs::open(c.clone()).unwrap();
+    let mut back = Vec::new();
+    let mut buf = vec![0u8; 1024];
+    let mut off = 0;
+    loop {
+        let n = fs.read("/DCIM/target.bin", off, &mut buf).unwrap();
+        if n == 0 {
+            break;
+        }
+        back.extend_from_slice(&buf[..n]);
+        off += n as u64;
+    }
+    assert_eq!(back, data);
+    let read = c.bytes.load(std::sync::atomic::Ordering::Relaxed);
+    // 100 reads of 1 KiB: data (100 KiB) + one pass over metadata, not 100.
+    assert!(read < 2 * 1024 * 1024, "read {read} bytes from the device");
+}
