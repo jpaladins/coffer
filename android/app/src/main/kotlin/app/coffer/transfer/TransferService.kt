@@ -19,6 +19,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 
 /**
@@ -41,7 +42,9 @@ class TransferService : Service() {
         if (!started) {
             started = true
             scope.launch {
-                transfers.progress.collect { p ->
+                // Byte progress changes many times a second; Android drops
+                // notification updates above ~5/s, so update per file only.
+                transfers.progress.distinctUntilChanged { a, b -> a?.index == b?.index && (a == null) == (b == null) }.collect { p ->
                     if (p == null) {
                         ServiceCompat.stopForeground(this@TransferService, ServiceCompat.STOP_FOREGROUND_REMOVE)
                         stopSelf()
