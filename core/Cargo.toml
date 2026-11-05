@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["coffer-crypto", "coffer-volume", "coffer-vfs", "coffer-fat", "coffer-exfat", "coffer-fs"]
+members = ["coffer-crypto", "coffer-volume", "coffer-vfs", "coffer-fat", "coffer-exfat", "coffer-fs", "coffer-ffi"]
 
 [workspace.package]
 version = "0.1.0"
