@@ -24,7 +24,7 @@ pub fn names_equal(a: &str, b: &str) -> bool {
 }
 
 /// Characters FAT and exFAT forbid in names (besides control characters).
-const FORBIDDEN: &[char] = &['"', '*', '/', ':', '<', '>', '?', '\', '|'];
+const FORBIDDEN: &[char] = &['"', '*', '/', ':', '<', '>', '?', '\u{5c}', '|'];
 
 /// Checks a single name for creation on FAT/exFAT: 1..=255 UTF-16 units, no
 /// forbidden or control characters, not `.`/`..`, no trailing space or dot
@@ -35,7 +35,10 @@ pub fn validate_name(name: &str) -> Result<(), CofferError> {
     if units == 0 || units > 255 || name == "." || name == ".." {
         return Err(bad());
     }
-    if name.chars().any(|c| (c as u32) < 0x20 || FORBIDDEN.contains(&c)) {
+    if name
+        .chars()
+        .any(|c| (c as u32) < 0x20 || FORBIDDEN.contains(&c))
+    {
         return Err(bad());
     }
     if name.ends_with(' ') || name.ends_with('.') {
