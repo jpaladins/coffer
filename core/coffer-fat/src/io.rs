@@ -32,11 +32,26 @@ impl SectorCache {
         }
     }
 
+    /// Drops cached copies of sectors overlapping `[off, off + len)`.
+    fn invalidate(&mut self, off: u64, len: u64) {
+        if len == 0 {
+            return;
+        }
+        let (first, last) = (off / SECTOR, (off + len - 1) / SECTOR);
+        if last - first < self.map.len() as u64 {
+            for s in first..=last {
+                self.map.remove(&s);
+            }
+        } else {
+            self.map.retain(|s, _| *s < first || *s > last);
+        }
+    }
+
     fn get(&mut self, dev: &dyn BlockDevice, sector: u64) -> io::Result<&[u8]> {
         if !self.map.contains_key(&sector) {
             let mut b = vec![0u8; SECTOR as usize];
             dev.read_at(sector * SECTOR, &mut b)
-                .map_err(|e| io::Error::other(e.to_string()))?;
+                .map_err(io::Error::other)?;
             if self.map.len() >= self.cap {
                 if let Some(old) = self.order.pop_front() {
                     self.map.remove(&old);
@@ -60,15 +75,22 @@ pub struct VolumeIo {
     pos: u64,
     budget: u64,
     cache: Arc<Mutex<SectorCache>>,
+    writable: bool,
 }
 
 impl VolumeIo {
-    pub fn new(dev: Arc<dyn BlockDevice>, budget: u64, cache: Arc<Mutex<SectorCache>>) -> Self {
+    pub fn new(
+        dev: Arc<dyn BlockDevice>,
+        budget: u64,
+        cache: Arc<Mutex<SectorCache>>,
+        writable: bool,
+    ) -> Self {
         Self {
             dev,
             pos: 0,
             budget,
             cache,
+            writable,
         }
     }
 }
@@ -100,7 +122,7 @@ impl Read for VolumeIo {
         } else {
             self.dev
                 .read_at(self.pos, &mut buf[..n])
-                .map_err(|e| io::Error::other(e.to_string()))?;
+                .map_err(io::Error::other)?;
         }
         self.pos = end;
         Ok(n)
@@ -108,14 +130,25 @@ impl Read for VolumeIo {
 }
 
 impl Write for VolumeIo {
-    fn write(&mut self, _buf: &[u8]) -> io::Result<usize> {
-        Err(io::Error::new(
-            io::ErrorKind::PermissionDenied,
-            "Coffer FAT is read-only",
-        ))
+    /// Device errors travel inside the io::Error so they can be recovered
+    /// with their variant (e.g. HiddenVolumeProtected), see `fs::map_io`.
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        if !self.writable {
+            return Err(io::Error::other(coffer_vfs::CofferError::ReadOnly));
+        }
+        self.dev.write_at(self.pos, buf).map_err(io::Error::other)?;
+        self.cache
+            .lock()
+            .unwrap_or_else(|p| p.into_inner())
+            .invalidate(self.pos, buf.len() as u64);
+        self.pos += buf.len() as u64;
+        Ok(buf.len())
     }
 
     fn flush(&mut self) -> io::Result<()> {
+        if self.writable {
+            self.dev.flush().map_err(io::Error::other)?;
+        }
         Ok(())
     }
 }
