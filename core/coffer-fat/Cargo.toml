@@ -1,0 +1,16 @@
+[package]
+name = "coffer-fat"
+description = "Read-only FAT12/16/32 for Coffer volumes (fatfs adapter)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+coffer-crypto.workspace = true
+coffer-volume.workspace = true
+coffer-vfs.workspace = true
+fatfs = { version = "0.3.6", default-features = false, features = ["std", "alloc"] }
+
+[dev-dependencies]
+fatfs = { version = "0.3.6", default-features = false, features = ["std", "alloc"] }
