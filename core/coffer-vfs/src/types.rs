@@ -52,4 +52,43 @@ pub trait Filesystem: Send + Sync {
     /// read (0 at or beyond end of file).
     fn read(&self, path: &str, offset: u64, buf: &mut [u8]) -> Result<usize, CofferError>;
     fn stats(&self) -> Result<FsStats, CofferError>;
+
+    // ---- writing (P4); read-only filesystems keep the defaults ----
+
+    /// Creates an empty file; fails with `AlreadyExists` if the name is taken.
+    fn create_file(&self, path: &str) -> Result<(), CofferError> {
+        let _ = path;
+        Err(CofferError::ReadOnly)
+    }
+    /// Writes at `offset`, growing the file as needed (gaps read as zero).
+    fn write(&self, path: &str, offset: u64, data: &[u8]) -> Result<(), CofferError> {
+        let _ = (path, offset, data);
+        Err(CofferError::ReadOnly)
+    }
+    /// Truncates or extends (with zeros) a file.
+    fn set_len(&self, path: &str, len: u64) -> Result<(), CofferError> {
+        let _ = (path, len);
+        Err(CofferError::ReadOnly)
+    }
+    fn mkdir(&self, path: &str) -> Result<(), CofferError> {
+        let _ = path;
+        Err(CofferError::ReadOnly)
+    }
+    /// Removes a file or an empty directory.
+    fn remove(&self, path: &str) -> Result<(), CofferError> {
+        let _ = path;
+        Err(CofferError::ReadOnly)
+    }
+    /// Renames or moves; the destination must not exist.
+    fn rename(&self, from: &str, to: &str) -> Result<(), CofferError> {
+        let _ = (from, to);
+        Err(CofferError::ReadOnly)
+    }
+    /// Flushes metadata and marks the volume clean.
+    fn sync(&self) -> Result<(), CofferError> {
+        Ok(())
+    }
+    fn is_writable(&self) -> bool {
+        false
+    }
 }

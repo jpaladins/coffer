@@ -8,5 +8,5 @@ mod types;
 
 pub use coffer_crypto::CofferError;
 pub use detect::detect;
-pub use path::{names_equal, split_path};
+pub use path::{names_equal, split_parent, split_path, validate_name};
 pub use types::{DirEntry, Filesystem, FsKind, FsStats};
