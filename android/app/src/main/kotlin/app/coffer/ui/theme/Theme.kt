@@ -24,7 +24,11 @@ private val Light = lightColorScheme(
     tertiary = CofferGold,
     background = Color(0xFFF7FAF7),
     surface = Color(0xFFF7FAF7),
+    surfaceContainerLowest = Color.White,
+    surfaceContainerLow = Color(0xFFF1F5F2),
     surfaceContainer = Color(0xFFEBF0EC),
+    surfaceContainerHigh = Color(0xFFE5EBE7),
+    surfaceContainerHighest = Color(0xFFDFE5E1),
     error = Color(0xFFBA1A1A),
 )
 
@@ -40,7 +44,11 @@ private val Dark = darkColorScheme(
     tertiary = CofferGoldLight,
     background = Color(0xFF0E1512),
     surface = Color(0xFF0E1512),
+    surfaceContainerLowest = Color(0xFF09100D),
+    surfaceContainerLow = Color(0xFF161E1A),
     surfaceContainer = Color(0xFF1A221E),
+    surfaceContainerHigh = Color(0xFF242D28),
+    surfaceContainerHighest = Color(0xFF2F3833),
     error = Color(0xFFFFB4AB),
 )
 

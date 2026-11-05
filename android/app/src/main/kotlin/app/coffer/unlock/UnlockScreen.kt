@@ -139,7 +139,12 @@ fun UnlockContent(
                 textObfuscationMode = TextObfuscationMode.RevealLastTyped,
                 enabled = !state.busy,
                 modifier = Modifier.fillMaxWidth(),
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                // Password keyboard: no suggestions, no learning, no autocorrect.
+                keyboardOptions = KeyboardOptions(
+                    keyboardType = KeyboardType.Password,
+                    autoCorrectEnabled = false,
+                    imeAction = ImeAction.Done,
+                ),
                 onKeyboardAction = { if (!state.busy) onUnlock(password.takePassword(), false) },
             )
             OutlinedTextField(
