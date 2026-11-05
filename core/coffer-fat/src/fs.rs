@@ -6,7 +6,7 @@ use coffer_vfs::{
 };
 use coffer_volume::BlockDevice;
 use std::io::{Read, Seek, SeekFrom, Write};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, RwLock, RwLockReadGuard, RwLockWriteGuard};
 
 type Fs = fatfs::FileSystem<VolumeIo>;
 type FatEntry<'a> = fatfs::DirEntry<'a, VolumeIo>;
@@ -26,6 +26,10 @@ pub struct FatFs {
     kind: FsKind,
     cache: Arc<Mutex<SectorCache>>,
     writable: bool,
+    /// Every operation mounts its own fatfs instance, which caches FAT and
+    /// directory state: two writers (or a reader during a write) would work
+    /// from stale copies and cross-link clusters. Writes are exclusive.
+    ops: RwLock<()>,
 }
 
 /// 8192 sectors = 4 MiB of decrypted metadata and small-cluster cache.
@@ -78,6 +82,7 @@ impl FatFs {
             kind,
             cache,
             writable,
+            ops: RwLock::new(()),
         })
     }
 
@@ -95,6 +100,14 @@ impl FatFs {
             options,
         )
         .map_err(corrupted)
+    }
+
+    fn shared(&self) -> RwLockReadGuard<'_, ()> {
+        self.ops.read().unwrap_or_else(|p| p.into_inner())
+    }
+
+    fn exclusive(&self) -> RwLockWriteGuard<'_, ()> {
+        self.ops.write().unwrap_or_else(|p| p.into_inner())
     }
 
     fn lock(&self) -> Result<Fs, CofferError> {
@@ -204,6 +217,7 @@ impl Filesystem for FatFs {
     }
 
     fn stat(&self, path: &str) -> Result<DirEntry, CofferError> {
+        let _ops = self.shared();
         let fs = self.lock()?;
         Ok(match resolve(&fs, path)? {
             Node::Root => DirEntry {
@@ -217,6 +231,7 @@ impl Filesystem for FatFs {
     }
 
     fn list(&self, path: &str) -> Result<Vec<DirEntry>, CofferError> {
+        let _ops = self.shared();
         let fs = self.lock()?;
         let node = resolve(&fs, path)?;
         let dir = as_dir(&fs, &node, path)?;
@@ -224,6 +239,7 @@ impl Filesystem for FatFs {
     }
 
     fn read(&self, path: &str, offset: u64, buf: &mut [u8]) -> Result<usize, CofferError> {
+        let _ops = self.shared();
         let fs = Self::mount(
             &self.dev,
             META_BUDGET.saturating_add(buf.len() as u64),
@@ -263,6 +279,7 @@ impl Filesystem for FatFs {
     }
 
     fn create_file(&self, path: &str) -> Result<(), CofferError> {
+        let _ops = self.exclusive();
         let (parent, name) = split_parent(path)?;
         validate_name(name)?;
         let fs = self.rw()?;
@@ -280,6 +297,7 @@ impl Filesystem for FatFs {
     }
 
     fn mkdir(&self, path: &str) -> Result<(), CofferError> {
+        let _ops = self.exclusive();
         let (parent, name) = split_parent(path)?;
         validate_name(name)?;
         let fs = self.rw()?;
@@ -297,6 +315,7 @@ impl Filesystem for FatFs {
     }
 
     fn write(&self, path: &str, offset: u64, data: &[u8]) -> Result<(), CofferError> {
+        let _ops = self.exclusive();
         let fs = self.rw()?;
         {
             let e = file_at(&fs, path)?;
@@ -315,6 +334,7 @@ impl Filesystem for FatFs {
     }
 
     fn set_len(&self, path: &str, new_len: u64) -> Result<(), CofferError> {
+        let _ops = self.exclusive();
         let fs = self.rw()?;
         {
             let e = file_at(&fs, path)?;
@@ -333,6 +353,7 @@ impl Filesystem for FatFs {
     }
 
     fn remove(&self, path: &str) -> Result<(), CofferError> {
+        let _ops = self.exclusive();
         let (parent, _) = split_parent(path)?;
         let fs = self.rw()?;
         {
@@ -351,6 +372,7 @@ impl Filesystem for FatFs {
     }
 
     fn rename(&self, from: &str, to: &str) -> Result<(), CofferError> {
+        let _ops = self.exclusive();
         let (src_parent, _) = split_parent(from)?;
         let (dst_parent, dst_name) = split_parent(to)?;
         validate_name(dst_name)?;
@@ -372,15 +394,32 @@ impl Filesystem for FatFs {
                 Node::Entry(e) => e,
             };
             let dst_dir = dir_at(&fs, &dst_parent)?;
-            if entries(&dst_dir)?
-                .iter()
-                .any(|e| names_equal(&e.file_name(), dst_name))
-            {
-                return Err(CofferError::AlreadyExists(to.to_string()));
+            let src_name = src.file_name();
+            let same_dir = {
+                let a = split_path(&src_parent)?;
+                let b = split_path(&dst_parent)?;
+                a.len() == b.len() && a.iter().zip(&b).all(|(x, y)| names_equal(x, y))
+            };
+            if same_dir && names_equal(&src_name, dst_name) {
+                if src_name == dst_name {
+                    return Ok(());
+                }
+                // Case-only change: fatfs sees the same entry and does nothing,
+                // so go through a temporary name.
+                let tmp = format!("~coffer-rename-{}.tmp", std::process::id());
+                dst_dir.rename(&src_name, &dst_dir, &tmp).map_err(map_io)?;
+                dst_dir.rename(&tmp, &dst_dir, dst_name).map_err(map_io)?;
+            } else {
+                if entries(&dst_dir)?
+                    .iter()
+                    .any(|e| names_equal(&e.file_name(), dst_name))
+                {
+                    return Err(CofferError::AlreadyExists(to.to_string()));
+                }
+                dir_at(&fs, &src_parent)?
+                    .rename(&src_name, &dst_dir, dst_name)
+                    .map_err(map_io)?;
             }
-            dir_at(&fs, &src_parent)?
-                .rename(&src.file_name(), &dst_dir, dst_name)
-                .map_err(map_io)?;
         }
         fs.unmount().map_err(map_io)
     }
@@ -390,6 +429,7 @@ impl Filesystem for FatFs {
     }
 
     fn stats(&self) -> Result<FsStats, CofferError> {
+        let _ops = self.shared();
         // Counting free clusters reads the whole FAT.
         let fs = Self::mount(&self.dev, self.dev.len(), &self.cache, false)?;
         let s = fs.stats().map_err(corrupted)?;

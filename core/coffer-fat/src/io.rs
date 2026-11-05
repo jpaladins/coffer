@@ -45,6 +45,11 @@ impl SectorCache {
         } else {
             self.map.retain(|s, _| *s < first || *s > last);
         }
+        // Invalidated sectors stay in `order`; compact it so it stays bounded.
+        if self.order.len() > self.cap * 2 {
+            let map = &self.map;
+            self.order.retain(|s| map.contains_key(s));
+        }
     }
 
     fn get(&mut self, dev: &dyn BlockDevice, sector: u64) -> io::Result<&[u8]> {
@@ -52,9 +57,14 @@ impl SectorCache {
             let mut b = vec![0u8; SECTOR as usize];
             dev.read_at(sector * SECTOR, &mut b)
                 .map_err(io::Error::other)?;
-            if self.map.len() >= self.cap {
-                if let Some(old) = self.order.pop_front() {
-                    self.map.remove(&old);
+            // Stale `order` entries (invalidated sectors) evict nothing: keep
+            // popping until there is room.
+            while self.map.len() >= self.cap {
+                match self.order.pop_front() {
+                    Some(old) => {
+                        self.map.remove(&old);
+                    }
+                    None => break,
                 }
             }
             self.map.insert(sector, b);

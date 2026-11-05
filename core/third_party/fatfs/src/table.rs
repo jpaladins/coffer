@@ -78,6 +78,19 @@ pub(crate) fn alloc_cluster<T: ReadWriteSeek>(
     hint: Option<u32>,
     total_clusters: u32,
 ) -> io::Result<u32> {
+    let new_cluster = find_alloc_candidate(fat, fat_type, hint, total_clusters)?;
+    link_new_cluster(fat, fat_type, prev_cluster, new_cluster)?;
+    Ok(new_cluster)
+}
+
+/// COFFER PATCH: allocation split in two, so the caller can prepare the
+/// cluster (zero it) before it becomes part of a chain.
+pub(crate) fn find_alloc_candidate<T: ReadSeek>(
+    fat: &mut T,
+    fat_type: FatType,
+    hint: Option<u32>,
+    total_clusters: u32,
+) -> io::Result<u32> {
     let end_cluster = total_clusters + RESERVED_FAT_ENTRIES;
     let start_cluster = match hint {
         Some(n) if n < end_cluster => n,
@@ -90,12 +103,21 @@ pub(crate) fn alloc_cluster<T: ReadWriteSeek>(
         },
         Err(e) => return Err(e),
     };
+    Ok(new_cluster)
+}
+
+pub(crate) fn link_new_cluster<T: ReadWriteSeek>(
+    fat: &mut T,
+    fat_type: FatType,
+    prev_cluster: Option<u32>,
+    new_cluster: u32,
+) -> io::Result<()> {
     write_fat(fat, fat_type, new_cluster, FatValue::EndOfChain)?;
     if let Some(n) = prev_cluster {
         write_fat(fat, fat_type, n, FatValue::Data(new_cluster))?;
     }
     trace!("allocated cluster {}", new_cluster);
-    Ok(new_cluster)
+    Ok(())
 }
 
 pub(crate) fn read_fat_flags<T: ReadSeek>(fat: &mut T, fat_type: FatType) -> io::Result<FsStatusFlags> {

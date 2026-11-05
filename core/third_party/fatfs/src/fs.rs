@@ -17,7 +17,7 @@ use boot_sector::{format_boot_sector, BiosParameterBlock, BootSector};
 use dir::{Dir, DirRawStream};
 use dir_entry::{DirFileEntryData, FileAttributes};
 use file::File;
-use table::{alloc_cluster, count_free_clusters, format_fat, read_fat_flags, ClusterIterator, RESERVED_FAT_ENTRIES};
+use table::{alloc_cluster, count_free_clusters, find_alloc_candidate, link_new_cluster, format_fat, read_fat_flags, ClusterIterator, RESERVED_FAT_ENTRIES};
 use time::{TimeProvider, DEFAULT_TIME_PROVIDER};
 
 // FAT implementation based on:
@@ -495,12 +495,19 @@ impl<T: ReadWriteSeek> FileSystem<T> {
         let hint = self.fs_info.borrow().next_free_cluster;
         let cluster = {
             let mut fat = self.fat_slice();
-            alloc_cluster(&mut fat, self.fat_type, prev_cluster, hint, self.total_clusters)?
+            find_alloc_candidate(&mut fat, self.fat_type, hint, self.total_clusters)?
         };
+        // COFFER PATCH: zero before linking. If zeroing fails (e.g. the
+        // cluster lies in a protected hidden volume), no chain references a
+        // cluster full of random bytes (garbage directory entries).
         if zero {
             let mut disk = self.disk.borrow_mut();
             disk.seek(SeekFrom::Start(self.offset_from_cluster(cluster)))?;
             write_zeros(&mut *disk, self.cluster_size() as u64)?;
+        }
+        {
+            let mut fat = self.fat_slice();
+            link_new_cluster(&mut fat, self.fat_type, prev_cluster, cluster)?;
         }
         let mut fs_info = self.fs_info.borrow_mut();
         fs_info.set_next_free_cluster(cluster + 1);

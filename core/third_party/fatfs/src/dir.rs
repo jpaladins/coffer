@@ -350,6 +350,11 @@ impl<'a, T: ReadWriteSeek + 'a> Dir<'a, T> {
             },
             DirEntryOrShortName::ShortName(short_name) => short_name,
         };
+        // COFFER PATCH: save the new entry BEFORE freeing the old one. If the
+        // destination directory cannot grow (no space, protected hidden
+        // volume) the file stays where it was instead of being lost.
+        let sfn_entry = e.data.renamed(short_name);
+        let new_entry = dst_dir.write_entry(dst_name, sfn_entry)?;
         // free long and short name entries
         let mut stream = self.stream.clone();
         stream.seek(SeekFrom::Start(e.offset_range.0 as u64))?;
@@ -361,9 +366,6 @@ impl<'a, T: ReadWriteSeek + 'a> Dir<'a, T> {
             stream.seek(SeekFrom::Current(-(DIR_ENTRY_SIZE as i64)))?;
             data.serialize(&mut stream)?;
         }
-        // save new directory entry
-        let sfn_entry = e.data.renamed(short_name);
-        let new_entry = dst_dir.write_entry(dst_name, sfn_entry)?;
         // COFFER PATCH: a moved directory's ".." (its second entry) must point
         // at the new parent, or chkdsk reports "errors in . and/or ..".
         if new_entry.is_dir() {

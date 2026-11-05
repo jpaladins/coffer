@@ -262,3 +262,132 @@ fn dotdot_points_to_parent_after_create_and_move() {
     }
     assert_eq!(checked, 3);
 }
+
+/// Device that refuses writes in `[from, len)`, like a protected hidden volume.
+struct Guarded {
+    inner: MemDevice,
+    from: std::sync::atomic::AtomicU64,
+}
+
+impl BlockDevice for Guarded {
+    fn read_at(&self, off: u64, buf: &mut [u8]) -> Result<(), CofferError> {
+        self.inner.read_at(off, buf)
+    }
+    fn write_at(&self, off: u64, buf: &[u8]) -> Result<(), CofferError> {
+        if off + buf.len() as u64 > self.from.load(std::sync::atomic::Ordering::SeqCst) {
+            return Err(CofferError::HiddenVolumeProtected);
+        }
+        self.inner.write_at(off, buf)
+    }
+    fn len(&self) -> u64 {
+        self.inner.len()
+    }
+    fn flush(&self) -> Result<(), CofferError> {
+        Ok(())
+    }
+}
+
+fn le16(b: &[u8], o: usize) -> u64 {
+    u64::from(u16::from_le_bytes([b[o], b[o + 1]]))
+}
+
+/// Review I1: growing a directory into a protected area must not link a
+/// cluster that still holds foreign (random) bytes.
+#[test]
+fn failed_directory_growth_leaves_no_garbage_entries() {
+    // Free clusters hold non-zero bytes, as decrypted hidden data would.
+    let mut cur = Cursor::new(vec![0xA7u8; 16 * 1024 * 1024]);
+    fatfs::format_volume(
+        &mut cur,
+        fatfs::FormatVolumeOptions::new().fat_type(fatfs::FatType::Fat16),
+    )
+    .unwrap();
+    let img = cur.into_inner();
+    let (bps, spc) = (le16(&img, 11), u64::from(img[13]));
+    let fat_start = le16(&img, 14) * bps;
+    let data_start = fat_start + u64::from(img[16]) * le16(&img, 22) * bps + le16(&img, 17) * 32;
+    let cluster = bps * spc;
+    let dev = Arc::new(Guarded {
+        inner: MemDevice::new(img),
+        from: u64::MAX.into(),
+    });
+    let fat = |c: u64| {
+        let mut b = [0u8; 2];
+        dev.inner.read_at(fat_start + c * 2, &mut b).unwrap();
+        u64::from(u16::from_le_bytes(b))
+    };
+    let fs = FatFs::open_rw(dev.clone()).unwrap();
+    fs.mkdir("/D").unwrap(); // cluster 2
+                             // Last cluster of /D's chain; protect everything after it.
+    let mut last = 2;
+    while fat(last) < 0xFFF8 {
+        last = fat(last);
+    }
+    dev.from.store(
+        data_start + (last - 1) * cluster,
+        std::sync::atomic::Ordering::SeqCst,
+    );
+    let mut created = 0;
+    let err = loop {
+        match fs.create_file(&format!("/D/F{created:05}.TXT")) {
+            Ok(()) => created += 1,
+            Err(e) => break e,
+        }
+        assert!(created < 1000);
+    };
+    assert!(matches!(err, CofferError::HiddenVolumeProtected), "{err:?}");
+    assert!(
+        fat(last) >= 0xFFF8,
+        "chain end {last} linked to {:#x}",
+        fat(last)
+    );
+    assert_eq!(fs.list("/D").unwrap().len(), created);
+}
+
+/// Review C1: writers on several threads must not cross-link clusters.
+#[test]
+fn concurrent_writers_keep_the_volume_consistent() {
+    let dev = blank(16, fatfs::FatType::Fat16);
+    let fs = Arc::new(FatFs::open_rw(dev.clone()).unwrap());
+    let threads: Vec<_> = (0..4u8)
+        .map(|t| {
+            let fs = fs.clone();
+            std::thread::spawn(move || {
+                fs.mkdir(&format!("/t{t}")).unwrap();
+                for i in 0..25u8 {
+                    let p = format!("/t{t}/f{i}.bin");
+                    fs.create_file(&p).unwrap();
+                    fs.write(&p, 0, &data(9000 + usize::from(i) * 100, t ^ i))
+                        .unwrap();
+                }
+            })
+        })
+        .collect();
+    for th in threads {
+        th.join().unwrap();
+    }
+    let again = FatFs::open(dev).unwrap();
+    for t in 0..4u8 {
+        for i in 0..25u8 {
+            let p = format!("/t{t}/f{i}.bin");
+            assert_eq!(
+                read_all(&again, &p),
+                data(9000 + usize::from(i) * 100, t ^ i),
+                "{p}"
+            );
+        }
+    }
+}
+
+/// Review M2: changing only the case of a name works on FAT too.
+#[test]
+fn case_only_rename() {
+    let fs = FatFs::open_rw(blank(1, fatfs::FatType::Fat12)).unwrap();
+    fs.create_file("/note.txt").unwrap();
+    fs.write("/note.txt", 0, b"hi").unwrap();
+    fs.rename("/note.txt", "/Note.TXT").unwrap();
+    let names: Vec<String> = fs.list("/").unwrap().into_iter().map(|e| e.name).collect();
+    assert_eq!(names, vec!["Note.TXT".to_string()]);
+    assert_eq!(read_all(&fs, "/Note.TXT"), b"hi");
+    fs.rename("/Note.TXT", "/Note.TXT").unwrap();
+}
