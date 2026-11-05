@@ -8,6 +8,24 @@ const val IMPORT_CHUNK = 1 shl 20
 
 fun childPath(dir: String, name: String): String = if (dir == "/") "/$name" else "$dir/$name"
 
+private const val FORBIDDEN = "\"*/:<>?|\\"
+
+/**
+ * Makes a name from another app (SAF display name) valid on FAT/exFAT:
+ * forbidden and control characters become '_', trailing dots and spaces go,
+ * and long names are cut to 255 UTF-16 units keeping the extension.
+ */
+fun sanitizeName(raw: String): String {
+    var s = raw.map { if (it < ' ' || it in FORBIDDEN) '_' else it }.joinToString("").trim().trimEnd('.', ' ')
+    if (s.isEmpty() || s == "." || s == "..") s = "file"
+    if (s.length > 255) {
+        val dot = s.lastIndexOf('.').takeIf { it > 0 && s.length - it <= 16 } ?: s.length
+        val ext = s.substring(dot)
+        s = s.substring(0, 255 - ext.length) + ext
+    }
+    return s
+}
+
 /** True when [path] exists (lookup is case-insensitive on FAT/exFAT). */
 fun VaultHandle.exists(path: String): Boolean = try {
     stat(path)

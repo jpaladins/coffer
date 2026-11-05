@@ -6,6 +6,8 @@ import android.content.Intent
 import android.net.Uri
 import android.provider.OpenableColumns
 import app.coffer.data.FdOpener
+import app.coffer.transfer.ImportSource
+import java.io.InputStream
 import java.io.ByteArrayOutputStream
 import java.io.FileNotFoundException
 
@@ -16,7 +18,7 @@ interface DocumentAccess {
     fun displayName(uri: String): String?
 }
 
-class ContentResolverAccess(private val resolver: ContentResolver) : FdOpener, DocumentAccess {
+class ContentResolverAccess(private val resolver: ContentResolver) : FdOpener, DocumentAccess, ImportSource {
     override fun openReadFd(uri: String): Int =
         resolver.openFileDescriptor(Uri.parse(uri), "r")?.detachFd()
             ?: throw FileNotFoundException(uri)
@@ -25,6 +27,9 @@ class ContentResolverAccess(private val resolver: ContentResolver) : FdOpener, D
     override fun openWriteFd(uri: String): Int =
         resolver.openFileDescriptor(Uri.parse(uri), "rw")?.detachFd()
             ?: throw FileNotFoundException(uri)
+
+    override fun openInput(uri: String): InputStream =
+        resolver.openInputStream(Uri.parse(uri)) ?: throw FileNotFoundException(uri)
 
     override fun readPrefix(uri: String, maxBytes: Int): ByteArray {
         val input = resolver.openInputStream(Uri.parse(uri)) ?: throw FileNotFoundException(uri)

@@ -3,6 +3,10 @@
 <!-- No INTERNET and no storage permission (ADR 0004): containers come from SAF. -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
+    <!-- Keeps long imports alive when the user leaves the app. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+
     <application
         android:name=".CofferApp"
         android:allowBackup="false"
@@ -30,5 +34,10 @@
             android:authorities="app.coffer.files"
             android:exported="false"
             android:grantUriPermissions="true" />
+
+        <service
+            android:name=".transfer.TransferService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
     </application>
 </manifest>

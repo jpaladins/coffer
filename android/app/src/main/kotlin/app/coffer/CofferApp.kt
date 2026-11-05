@@ -13,11 +13,19 @@ import app.coffer.security.SecuritySettings
 import dagger.hilt.android.HiltAndroidApp
 import javax.inject.Inject
 import kotlinx.coroutines.MainScope
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
+import app.coffer.security.LockGuard
+import app.coffer.transfer.TransferManager
+import app.coffer.transfer.TransferService
 
 @HiltAndroidApp
 class CofferApp : Application() {
     @Inject lateinit var sessions: SessionManager
     @Inject lateinit var settings: SecuritySettings
+    @Inject lateinit var guard: LockGuard
+    @Inject lateinit var transfers: TransferManager
 
     override fun onCreate() {
         super.onCreate()
@@ -25,7 +33,14 @@ class CofferApp : Application() {
         sessions.addCloseListener { s ->
             revokeUriPermission(VaultFileProvider.sessionRoot(s.token), Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }
-        val autoLock = AutoLock(MainScope(), timeoutMs = settings::currentAutoLockMs, lockAll = sessions::closeAll)
+        val main = MainScope()
+        val autoLock = AutoLock(main, settings::currentAutoLockMs, guard.held, sessions::closeAll)
+        // A transfer gets a foreground service, so the process survives in background.
+        main.launch {
+            transfers.progress.map { it != null }.distinctUntilChanged().collect { active ->
+                if (active) runCatching { TransferService.start(this@CofferApp) }
+            }
+        }
         ProcessLifecycleOwner.get().lifecycle.addObserver(object : DefaultLifecycleObserver {
             override fun onStop(owner: LifecycleOwner) = autoLock.onBackground()
             override fun onStart(owner: LifecycleOwner) = autoLock.onForeground()

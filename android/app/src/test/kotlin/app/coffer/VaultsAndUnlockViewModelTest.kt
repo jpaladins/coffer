@@ -127,4 +127,61 @@ class VaultsAndUnlockViewModelTest {
         assertFalse(vm.uiState.value.toString().contains("hunter2"))
         assertTrue(pw.all { it == '\u0000' })
     }
+
+    @Test
+    fun default_unlock_is_writable_without_hidden() = runTest {
+        val store = FakeStore(ref)
+        val native = FakeNative()
+        val vm = UnlockViewModel("v1", store, sessions(native, store, StandardTestDispatcher(testScheduler)))
+        advanceUntilIdle()
+        vm.onUnlock("secret".toCharArray(), hiddenPassword = "ignored".toCharArray())
+        advanceUntilIdle()
+        assertTrue(native.lastCreds!!.writable)
+        assertEquals(null, native.lastCreds!!.hiddenPassword)
+    }
+
+    @Test
+    fun read_only_switch_opens_read_only_and_disables_hidden_protection() = runTest {
+        val store = FakeStore(ref)
+        val native = FakeNative()
+        val vm = UnlockViewModel("v1", store, sessions(native, store, StandardTestDispatcher(testScheduler)))
+        advanceUntilIdle()
+        vm.onProtectHiddenChange(true)
+        vm.onReadOnlyChange(true)
+        assertFalse(vm.uiState.value.protectHidden)
+        vm.onProtectHiddenChange(true)
+        assertFalse(vm.uiState.value.protectHidden)
+        vm.onUnlock("secret".toCharArray())
+        advanceUntilIdle()
+        assertFalse(native.lastCreds!!.writable)
+    }
+
+    @Test
+    fun hidden_protection_passes_and_wipes_hidden_password() = runTest {
+        val store = FakeStore(ref)
+        val native = FakeNative()
+        val vm = UnlockViewModel("v1", store, sessions(native, store, StandardTestDispatcher(testScheduler)))
+        advanceUntilIdle()
+        vm.onProtectHiddenChange(true)
+        val hidden = "hidden-pw".toCharArray()
+        vm.onUnlock("secret".toCharArray(), hiddenPassword = hidden)
+        advanceUntilIdle()
+        val c = native.lastCreds!!
+        assertTrue(c.writable)
+        assertTrue(c.hiddenPassword!!.all { it == 0.toByte() })
+        assertTrue(hidden.all { it == '\u0000' })
+        assertFalse(vm.uiState.value.toString().contains("hidden-pw"))
+    }
+
+    @Test
+    fun wrong_password_with_hidden_protection_is_flagged() = runTest {
+        val store = FakeStore(ref)
+        val vm = UnlockViewModel("v1", store, sessions(FakeNative(), store, StandardTestDispatcher(testScheduler)))
+        advanceUntilIdle()
+        vm.onProtectHiddenChange(true)
+        vm.onUnlock("wrong".toCharArray(), hiddenPassword = "h".toCharArray())
+        advanceUntilIdle()
+        val phase = vm.uiState.value.phase
+        assertTrue(phase is UnlockPhase.Error && phase.hiddenRequested)
+    }
 }

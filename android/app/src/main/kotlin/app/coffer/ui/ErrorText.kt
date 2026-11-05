@@ -15,5 +15,11 @@ fun CofferException.userMessage(): String = when (this) {
     is CofferException.Unsupported -> stringResource(R.string.error_unsupported, detail)
     is CofferException.PermissionLost -> stringResource(R.string.error_permission_lost)
     is CofferException.Closed -> stringResource(R.string.error_closed)
+    is CofferException.HiddenVolumeProtected -> stringResource(R.string.error_hidden_protected)
+    is CofferException.NoSpace -> stringResource(R.string.error_no_space)
+    is CofferException.AlreadyExists -> stringResource(R.string.error_already_exists, path.substringAfterLast('/'))
+    is CofferException.NotEmpty -> stringResource(R.string.error_not_empty, path.substringAfterLast('/'))
+    is CofferException.ReadOnly -> stringResource(R.string.error_read_only)
+    is CofferException.InvalidPath -> stringResource(R.string.error_invalid_name, path)
     else -> stringResource(R.string.error_generic, message ?: "")
 }

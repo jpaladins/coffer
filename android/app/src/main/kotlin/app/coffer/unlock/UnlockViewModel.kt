@@ -24,7 +24,8 @@ import kotlinx.coroutines.launch
 sealed interface UnlockPhase {
     data object Idle : UnlockPhase
     data object Unlocking : UnlockPhase
-    data class Error(val error: CofferException) : UnlockPhase
+    /** [hiddenRequested]: a wrong password may be the hidden volume's one. */
+    data class Error(val error: CofferException, val hiddenRequested: Boolean = false) : UnlockPhase
 }
 
 data class KeyfileUi(val uri: String, val name: String)
@@ -37,6 +38,9 @@ data class UnlockUiState(
     val keyfiles: List<KeyfileUi> = emptyList(),
     val phase: UnlockPhase = UnlockPhase.Idle,
     val offerBackupHeaders: Boolean = false,
+    val readOnly: Boolean = false,
+    /** Asks for the hidden volume's password to keep it safe from writes. */
+    val protectHidden: Boolean = false,
 ) {
     val busy: Boolean get() = phase == UnlockPhase.Unlocking
 }
@@ -84,12 +88,22 @@ class UnlockViewModel @AssistedInject constructor(
         if (it.keyfiles.any { k -> k.uri == uri }) it else it.copy(keyfiles = it.keyfiles + KeyfileUi(uri, name))
     }
 
+    fun onReadOnlyChange(value: Boolean) = _uiState.update {
+        it.copy(readOnly = value, protectHidden = it.protectHidden && !value)
+    }
+
+    fun onProtectHiddenChange(value: Boolean) = _uiState.update { it.copy(protectHidden = value && !it.readOnly) }
+
     fun onRemoveKeyfile(uri: String) = _uiState.update { it.copy(keyfiles = it.keyfiles.filterNot { k -> k.uri == uri }) }
 
-    /** Takes ownership of [password] and wipes it. */
-    fun onUnlock(password: CharArray, tryBackupHeaders: Boolean = false) {
-        if (_uiState.value.busy) {
+    /** Takes ownership of [password] and [hiddenPassword] and wipes them. */
+    fun onUnlock(password: CharArray, tryBackupHeaders: Boolean = false, hiddenPassword: CharArray? = null) {
+        val st = _uiState.value
+        val hidden = hiddenPassword?.takeIf { st.protectHidden && !st.readOnly && it.isNotEmpty() }
+        if (hidden == null) hiddenPassword?.fill('\u0000')
+        if (st.busy) {
             password.fill('\u0000')
+            hidden?.fill('\u0000')
             return
         }
         val signal = sessions.newCancel().also { cancel = it }
@@ -99,7 +113,10 @@ class UnlockViewModel @AssistedInject constructor(
             try {
                 val ref = store.vaults.first().firstOrNull { it.id == vaultId }
                     ?: throw CofferException.NotFound(vaultId)
-                val req = UnlockRequest(password, s.pim.toIntOrNull() ?: 0, s.keyfiles.map { it.uri }, s.prf, tryBackupHeaders)
+                val req = UnlockRequest(
+                    password, s.pim.toIntOrNull() ?: 0, s.keyfiles.map { it.uri }, s.prf, tryBackupHeaders,
+                    writable = !s.readOnly, hiddenPassword = hidden,
+                )
                 sessions.unlock(ref, req, signal)
                 _uiState.update { it.copy(phase = UnlockPhase.Idle, offerBackupHeaders = false) }
                 _effects.send(UnlockEffect.NavigateToBrowser(vaultId))
@@ -108,12 +125,13 @@ class UnlockViewModel @AssistedInject constructor(
             } catch (e: CofferException) {
                 _uiState.update {
                     it.copy(
-                        phase = UnlockPhase.Error(e),
+                        phase = UnlockPhase.Error(e, hiddenRequested = hidden != null),
                         offerBackupHeaders = e is CofferException.WrongCredentials && !tryBackupHeaders,
                     )
                 }
             } finally {
                 password.fill('\u0000')
+                hidden?.fill('\u0000')
                 cancel = null
             }
         }

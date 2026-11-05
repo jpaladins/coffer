@@ -54,4 +54,36 @@
     <string name="autolock_2m">Dopo 2 minuti</string>
     <string name="autolock_5m">Dopo 5 minuti</string>
     <string name="about_trademark">Coffer è un progetto indipendente e non è affiliato a IDRIX. VeraCrypt® è un marchio di IDRIX.</string>
+
+    <string name="unlock_read_only">Apri in sola lettura</string>
+    <string name="unlock_protect_hidden">Proteggi il volume nascosto</string>
+    <string name="unlock_protect_hidden_help">Se questo container contiene un volume nascosto, inserisci la sua password: Coffer rifiuterà ogni scrittura che lo sovrascriverebbe.</string>
+    <string name="unlock_hidden_password">Password del volume nascosto</string>
+    <string name="error_wrong_credentials_hidden">Password errata, oppure la password del volume nascosto non corrisponde (o non c\'è un volume nascosto).</string>
+    <string name="error_hidden_protected">Scrittura bloccata: avrebbe sovrascritto il volume nascosto. Nel volume esterno non c\'è più spazio sicuro.</string>
+    <string name="error_no_space">Spazio insufficiente nel container.</string>
+    <string name="error_already_exists">Esiste già un elemento con questo nome: %1$s</string>
+    <string name="error_not_empty">La cartella non è vuota: %1$s</string>
+    <string name="error_read_only">Questo container è aperto in sola lettura.</string>
+    <string name="error_invalid_name">Nome o percorso non valido: %1$s</string>
+    <string name="browser_read_only">Sola lettura</string>
+    <string name="browser_hidden_protected">Volume nascosto protetto</string>
+    <string name="browser_import">Importa file</string>
+    <string name="browser_new_folder">Nuova cartella</string>
+    <string name="browser_rename">Rinomina</string>
+    <string name="browser_move">Sposta</string>
+    <string name="browser_delete">Elimina</string>
+    <string name="browser_delete_title">Eliminare %1$s?</string>
+    <string name="browser_delete_body">Verrà rimosso dal container, con tutto il contenuto. L\'operazione non si può annullare.</string>
+    <string name="browser_name">Nome</string>
+    <string name="browser_ok">OK</string>
+    <string name="browser_cancel">Annulla</string>
+    <string name="browser_move_here">Sposta qui</string>
+    <string name="browser_moving">Sposta %1$s: apri la cartella di destinazione</string>
+    <string name="import_progress">Importazione di %1$s (%2$d di %3$d)</string>
+    <string name="import_done">Importazione completata: %1$d di %2$d file</string>
+    <string name="import_failed">Impossibile importare %1$s: %2$s</string>
+    <string name="import_stop">Interrompi</string>
+    <string name="transfer_channel">Trasferimenti di file</string>
+    <string name="transfer_notification">Importazione file (%1$d di %2$d)</string>
 </resources>

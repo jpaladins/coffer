@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.text.input.TextFieldState
 import androidx.compose.foundation.text.input.TextObfuscationMode
@@ -38,6 +39,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedSecureTextField
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -55,6 +57,7 @@ import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.editableText
 import androidx.compose.ui.semantics.onClick
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.password
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.platform.LocalContext
@@ -67,6 +70,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.repeatOnLifecycle
 import app.coffer.R
+import app.coffer.data.CofferException
 import app.coffer.platform.ContentResolverAccess
 import app.coffer.ui.CofferMark
 import app.coffer.ui.userMessage
@@ -94,6 +98,8 @@ fun UnlockScreen(viewModel: UnlockViewModel, onBack: () -> Unit, onUnlocked: (St
         onPrfChange = viewModel::onPrfChange,
         onAddKeyfile = { keyfilePicker.launch(arrayOf("*/*")) },
         onRemoveKeyfile = viewModel::onRemoveKeyfile,
+        onReadOnlyChange = viewModel::onReadOnlyChange,
+        onProtectHiddenChange = viewModel::onProtectHiddenChange,
         onUnlock = viewModel::onUnlock,
         onCancel = viewModel::onCancel,
     )
@@ -115,12 +121,20 @@ fun UnlockContent(
     onPrfChange: (String?) -> Unit,
     onAddKeyfile: () -> Unit,
     onRemoveKeyfile: (String) -> Unit,
-    onUnlock: (CharArray, Boolean) -> Unit,
+    onReadOnlyChange: (Boolean) -> Unit,
+    onProtectHiddenChange: (Boolean) -> Unit,
+    onUnlock: (CharArray, Boolean, CharArray?) -> Unit,
     onCancel: () -> Unit,
 ) {
     // Deliberately not rememberSaveable: the password must not be written
     // to the saved-instance Bundle, so it is lost on rotation.
     val password = remember { TextFieldState() }
+    val hiddenPassword = remember { TextFieldState() }
+    fun submit(backup: Boolean) {
+        val hidden = hiddenPassword.takePassword()
+        onUnlock(password.takePassword(), backup, hidden)
+    }
+    val hiddenMissing = state.protectHidden && hiddenPassword.text.isEmpty()
     val passwordFocus = remember { FocusRequester() }
     val passwordLabel = stringResource(R.string.unlock_password)
     var showAdvanced by remember { mutableStateOf(false) }
@@ -165,7 +179,7 @@ fun UnlockContent(
                     autoCorrectEnabled = false,
                     imeAction = ImeAction.Done,
                 ),
-                onKeyboardAction = { if (!state.busy) onUnlock(password.takePassword(), false) },
+                onKeyboardAction = { if (!state.busy && !hiddenMissing) submit(false) },
             )
             OutlinedTextField(
                 value = state.pim,
@@ -191,6 +205,17 @@ fun UnlockContent(
                     }
                 }
                 OutlinedButton(onClick = onAddKeyfile, enabled = !state.busy) { Text(stringResource(R.string.unlock_add_keyfile)) }
+                SwitchRow(stringResource(R.string.unlock_read_only), state.readOnly, !state.busy, onReadOnlyChange)
+                SwitchRow(
+                    stringResource(R.string.unlock_protect_hidden),
+                    state.protectHidden,
+                    !state.busy && !state.readOnly,
+                    onProtectHiddenChange,
+                )
+                if (state.protectHidden) {
+                    Text(stringResource(R.string.unlock_protect_hidden_help), style = MaterialTheme.typography.bodySmall)
+                    PasswordField(hiddenPassword, stringResource(R.string.unlock_hidden_password), !state.busy)
+                }
             }
             when (val phase = state.phase) {
                 UnlockPhase.Unlocking -> {
@@ -198,21 +223,60 @@ fun UnlockContent(
                     Text(stringResource(R.string.unlock_working), style = MaterialTheme.typography.bodyMedium)
                     OutlinedButton(onClick = onCancel, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.unlock_cancel)) }
                 }
-                is UnlockPhase.Error -> ErrorCard(phase.error.userMessage())
+                is UnlockPhase.Error -> ErrorCard(
+                    if (phase.hiddenRequested && phase.error is CofferException.WrongCredentials) {
+                        stringResource(R.string.error_wrong_credentials_hidden)
+                    } else {
+                        phase.error.userMessage()
+                    },
+                )
                 UnlockPhase.Idle -> Unit
             }
             if (!state.busy) {
-                Button(onClick = { onUnlock(password.takePassword(), false) }, modifier = Modifier.fillMaxWidth().height(52.dp)) {
+                Button(onClick = { submit(false) }, enabled = !hiddenMissing, modifier = Modifier.fillMaxWidth().height(52.dp)) {
                     Text(stringResource(R.string.unlock_button))
                 }
                 if (state.offerBackupHeaders) {
-                    TextButton(onClick = { onUnlock(password.takePassword(), true) }, modifier = Modifier.fillMaxWidth()) {
+                    TextButton(onClick = { submit(true) }, enabled = !hiddenMissing, modifier = Modifier.fillMaxWidth()) {
                         Text(stringResource(R.string.unlock_try_backup))
                     }
                 }
             }
         }
     }
+}
+
+@Composable
+private fun SwitchRow(label: String, checked: Boolean, enabled: Boolean, onChange: (Boolean) -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().toggleable(checked, enabled = enabled, role = Role.Switch, onValueChange = onChange),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(label, Modifier.weight(1f))
+        Switch(checked = checked, onCheckedChange = null, enabled = enabled)
+    }
+}
+
+/** Second secret field, with the same masking rules as the main password. */
+@Composable
+private fun PasswordField(state: TextFieldState, label: String, enabled: Boolean) {
+    val focus = remember { FocusRequester() }
+    OutlinedSecureTextField(
+        state = state,
+        label = { Text(label) },
+        textObfuscationMode = TextObfuscationMode.RevealLastTyped,
+        enabled = enabled,
+        modifier = Modifier
+            .fillMaxWidth()
+            .focusRequester(focus)
+            .clearAndSetSemantics {
+                contentDescription = label
+                password()
+                editableText = AnnotatedString("•".repeat(state.text.length))
+                onClick { focus.requestFocus(); true }
+            },
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, autoCorrectEnabled = false),
+    )
 }
 
 @Composable

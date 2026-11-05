@@ -25,7 +25,11 @@ import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import javax.inject.Singleton
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import app.coffer.security.LockGuard
+import app.coffer.transfer.TransferManager
 
 @Module
 @InstallIn(SingletonComponent::class)
@@ -51,6 +55,13 @@ object AppModule {
 
     @Provides
     fun exporter(@ApplicationContext ctx: Context): Exporter = ContentResolverExporter(ctx.contentResolver)
+
+    @Provides @Singleton
+    fun lockGuard() = LockGuard()
+
+    @Provides @Singleton
+    fun transfers(sessions: SessionManager, access: ContentResolverAccess, guard: LockGuard) =
+        TransferManager(sessions, access, guard, Dispatchers.IO, CoroutineScope(SupervisorJob()))
 
     @Provides @IoDispatcher
     fun io(): CoroutineDispatcher = Dispatchers.IO

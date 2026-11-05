@@ -6,8 +6,15 @@ import androidx.lifecycle.viewModelScope
 import app.coffer.data.CofferException
 import app.coffer.data.Entry
 import app.coffer.data.SessionManager
+import app.coffer.data.VaultHandle
+import app.coffer.data.childPath
+import app.coffer.data.removeRecursive
 import app.coffer.platform.Exporter
 import app.coffer.platform.IoDispatcher
+import app.coffer.security.LockGuard
+import app.coffer.transfer.ImportResult
+import app.coffer.transfer.TransferManager
+import app.coffer.transfer.TransferProgress
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedFactory
 import dagger.assisted.AssistedInject
@@ -30,8 +37,19 @@ data class BrowserUiState(
     val error: CofferException? = null,
     /** 0..1 while an export runs. */
     val exportProgress: Float? = null,
+    val writable: Boolean = false,
+    val hiddenProtected: Boolean = false,
+    /** Import running in this vault. */
+    val transfer: TransferProgress? = null,
+    /** Path picked with "Move", waiting for "Move here". */
+    val moving: String? = null,
+    /** A write operation (mkdir, rename, delete, move) is running. */
+    val busy: Boolean = false,
 ) {
     val breadcrumbs: List<String> get() = path.split('/').filter { it.isNotEmpty() }
+    val canMoveHere: Boolean
+        get() = moving != null && moving.substringBeforeLast('/').ifEmpty { "/" } != path &&
+            path != moving && !path.startsWith("$moving/")
 }
 
 sealed interface BrowserEffect {
@@ -39,11 +57,11 @@ sealed interface BrowserEffect {
     data class OpenFile(val path: String) : BrowserEffect
     data class Exported(val name: String) : BrowserEffect
     data class ExportFailed(val error: CofferException) : BrowserEffect
+    data class Failed(val error: CofferException) : BrowserEffect
+    data class Imported(val result: ImportResult) : BrowserEffect
 }
 
 private const val CHUNK = 1 shl 20
-
-fun childPath(dir: String, name: String) = if (dir == "/") "/$name" else "$dir/$name"
 
 @HiltViewModel(assistedFactory = BrowserViewModel.Factory::class)
 class BrowserViewModel @AssistedInject constructor(
@@ -51,6 +69,8 @@ class BrowserViewModel @AssistedInject constructor(
     private val sessions: SessionManager,
     private val exporter: Exporter,
     @IoDispatcher private val io: CoroutineDispatcher,
+    private val transfers: TransferManager,
+    private val guard: LockGuard,
 ) : ViewModel() {
     @AssistedFactory
     interface Factory {
@@ -63,7 +83,20 @@ class BrowserViewModel @AssistedInject constructor(
     val effects = _effects.receiveAsFlow()
 
     init {
+        sessions.session(vaultId)?.handle?.info?.let { info ->
+            _uiState.update { it.copy(writable = info.writable, hiddenProtected = info.hiddenProtected) }
+        }
         load("/")
+        viewModelScope.launch {
+            transfers.progress.collect { p -> _uiState.update { it.copy(transfer = p?.takeIf { p.vaultId == vaultId }) } }
+        }
+        viewModelScope.launch {
+            transfers.results.collect { r ->
+                if (r.vaultId != vaultId) return@collect
+                _effects.send(BrowserEffect.Imported(r))
+                if (r.dir == _uiState.value.path) load(r.dir)
+            }
+        }
     }
 
     private fun handle() = sessions.session(vaultId)?.handle
@@ -106,14 +139,75 @@ class BrowserViewModel @AssistedInject constructor(
     }
 
     fun onLock() {
-        sessions.close(vaultId)
-        _effects.trySend(BrowserEffect.Exit)
+        viewModelScope.launch {
+            // An import must not be cut mid-write by the lock: stop it cleanly first.
+            if (_uiState.value.transfer != null) transfers.cancelAndJoin()
+            sessions.close(vaultId)
+            _effects.send(BrowserEffect.Exit)
+        }
+    }
+
+    /** Call before launching a system picker; the result callback calls [onPickerClosed]. */
+    fun onPickerOpening() = guard.acquire()
+
+    fun onPickerClosed() = guard.release()
+
+    fun onImport(uris: List<String>) {
+        if (uris.isEmpty()) return
+        if (!transfers.import(vaultId, _uiState.value.path, uris)) {
+            _effects.trySend(BrowserEffect.Failed(CofferException.Io("another import is running")))
+        }
+    }
+
+    fun onCancelImport() = transfers.cancel()
+
+    fun onNewFolder(name: String) = mutate { h, dir -> h.mkdir(childPath(dir, name.trim())) }
+
+    fun onRename(entry: Entry, newName: String) = mutate { h, dir ->
+        val name = newName.trim()
+        if (name != entry.name) h.rename(childPath(dir, entry.name), childPath(dir, name))
+    }
+
+    fun onDelete(entry: Entry) = mutate { h, dir -> h.removeRecursive(childPath(dir, entry.name)) }
+
+    fun onStartMove(entry: Entry) = _uiState.update { it.copy(moving = childPath(it.path, entry.name)) }
+
+    fun onCancelMove() = _uiState.update { it.copy(moving = null) }
+
+    fun onMoveHere() {
+        val from = _uiState.value.moving ?: return
+        if (!_uiState.value.canMoveHere) return
+        _uiState.update { it.copy(moving = null) }
+        mutate { h, dir -> h.rename(from, childPath(dir, from.substringAfterLast('/'))) }
+    }
+
+    /** Runs a write in the current folder, then syncs and reloads it. */
+    private fun mutate(op: (VaultHandle, String) -> Unit) {
+        val h = handle() ?: return run { _effects.trySend(BrowserEffect.Exit) }
+        val dir = _uiState.value.path
+        _uiState.update { it.copy(busy = true) }
+        viewModelScope.launch {
+            try {
+                withContext(io) {
+                    op(h, dir)
+                    h.sync()
+                }
+            } catch (e: CofferException.Closed) {
+                _effects.send(BrowserEffect.Exit)
+            } catch (e: CofferException) {
+                _effects.send(BrowserEffect.Failed(e))
+            } finally {
+                _uiState.update { it.copy(busy = false) }
+                load(dir)
+            }
+        }
     }
 
     /** Streams the file to the SAF destination in 1 MiB chunks. */
     fun onExport(path: String, size: Long, targetUri: String) {
         val h = handle() ?: return run { _effects.trySend(BrowserEffect.Exit) }
         _uiState.update { it.copy(exportProgress = 0f) }
+        guard.acquire()
         viewModelScope.launch {
             try {
                 withContext(io) {
@@ -136,6 +230,7 @@ class BrowserViewModel @AssistedInject constructor(
             } catch (e: java.io.IOException) {
                 _effects.send(BrowserEffect.ExportFailed(CofferException.Io(e.message ?: "write failed")))
             } finally {
+                guard.release()
                 _uiState.update { it.copy(exportProgress = null) }
             }
         }

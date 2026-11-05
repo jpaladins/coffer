@@ -144,6 +144,20 @@ class VaultFilesTest {
     }
 
     @Test
+    fun sanitize_name_makes_fat_safe_names() {
+        assertEquals("a_b_c_.txt", sanitizeName("a:b*c?.txt"))
+        assertEquals("x_y", sanitizeName("x\\y"))
+        assertEquals("tab_", sanitizeName("tab\t"))
+        assertEquals("name", sanitizeName(" name. . "))
+        assertEquals("file", sanitizeName(".."))
+        assertEquals("file", sanitizeName("   "))
+        val long = sanitizeName("a".repeat(300) + ".jpeg")
+        assertEquals(255, long.length)
+        assertTrue(long.endsWith(".jpeg"))
+        assertEquals("àèìòù €.txt", sanitizeName("àèìòù €.txt"))
+    }
+
+    @Test
     fun remove_recursive_empties_directories() {
         val h = MemHandle()
         h.mkdir("/a")

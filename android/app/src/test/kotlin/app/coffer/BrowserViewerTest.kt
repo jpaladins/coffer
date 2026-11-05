@@ -62,16 +62,22 @@ class BrowserViewerTest {
         return sm
     }
 
+    private fun TestScope.browserVm(sm: SessionManager, exporter: FakeExporter = FakeExporter()) = BrowserViewModel(
+        "v1", sm, exporter, StandardTestDispatcher(testScheduler),
+        app.coffer.transfer.TransferManager(sm, FakeSource(emptyMap()), app.coffer.security.LockGuard(), StandardTestDispatcher(testScheduler), backgroundScope),
+        app.coffer.security.LockGuard(),
+    )
+
     @Test
     fun entries_sorted_dirs_first_case_insensitive() = runTest {
-        val vm = BrowserViewModel("v1", openSessions(), FakeExporter(), StandardTestDispatcher(testScheduler))
+        val vm = browserVm(openSessions(), FakeExporter())
         advanceUntilIdle()
         assertEquals(listOf("alfa", "Beta", "alpha.txt", "zeta.txt"), vm.uiState.value.entries.map { it.name })
     }
 
     @Test
     fun navigate_into_dir_and_up_then_exit_from_root() = runTest {
-        val vm = BrowserViewModel("v1", openSessions(), FakeExporter(), StandardTestDispatcher(testScheduler))
+        val vm = browserVm(openSessions(), FakeExporter())
         advanceUntilIdle()
         vm.onOpen(Entry("Beta", true, 0, null))
         advanceUntilIdle()
@@ -88,7 +94,7 @@ class BrowserViewerTest {
 
     @Test
     fun open_file_emits_open_effect() = runTest {
-        val vm = BrowserViewModel("v1", openSessions(), FakeExporter(), StandardTestDispatcher(testScheduler))
+        val vm = browserVm(openSessions(), FakeExporter())
         advanceUntilIdle()
         vm.onOpen(Entry("zeta.txt", false, 1, null))
         assertEquals(BrowserEffect.OpenFile("/zeta.txt"), vm.effects.first())
@@ -97,7 +103,7 @@ class BrowserViewerTest {
     @Test
     fun export_copies_exact_bytes() = runTest {
         val exporter = FakeExporter()
-        val vm = BrowserViewModel("v1", openSessions(), exporter, StandardTestDispatcher(testScheduler))
+        val vm = browserVm(openSessions(), exporter)
         advanceUntilIdle()
         vm.onExport("/big.bin", big.size.toLong(), "content://out/big.bin")
         advanceUntilIdle()
@@ -109,7 +115,7 @@ class BrowserViewerTest {
     fun locked_session_exits_browser() = runTest {
         val sm = openSessions()
         sm.close("v1")
-        val vm = BrowserViewModel("v1", sm, FakeExporter(), StandardTestDispatcher(testScheduler))
+        val vm = browserVm(sm, FakeExporter())
         advanceUntilIdle()
         assertEquals(BrowserEffect.Exit, vm.effects.first())
     }
