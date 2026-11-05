@@ -21,3 +21,17 @@ Strumento: `core/coffer-volume/examples/bench_open.rs` (build `--release`). Cont
   2. al primo tentativo `try_backup_headers = false` (dimezza il tempo), con "Prova header di backup" come azione esplicita;
   3. una barra di avanzamento con il pulsante Annulla, che risponde entro 1 s.
 - Argon2id con PIM 0 alloca 416 MiB: su dispositivi con poca RAM `max_kdf_memory` va impostato in base a `ActivityManager.MemoryInfo`.
+
+## 2026-11-05 — P2: lettura di file
+
+Strumento: `core/coffer-fs/examples/bench_read.rs`. File `/big.bin` da 3 MiB, letto a blocchi da 1 MiB, AES/SHA-512.
+
+| Filesystem | PC (Windows) | Emulatore Android 17 x86_64 (4 core), valori tipici |
+|---|---|---|
+| exFAT 64 MiB | 600 MB/s | 150–360 MB/s |
+| FAT32 300 MiB | 240 MB/s | 90–180 MB/s |
+| FAT16 10 MiB | 157 MB/s | ~125 MB/s |
+
+### Note
+- **Le prime esecuzioni dopo `adb push` e alcune isolate** sull'emulatore sono state molto più lente (4–15 MB/s), sia su exFAT sia su FAT32. Ripetendo le misure, e con `RAYON_NUM_THREADS` fissato, i valori tornano nell'intervallo tipico. La causa è la cache e lo scheduling dell'emulatore, non il codice. Il throughput va comunque misurato su un dispositivo ARM reale in P3.
+- **exFAT legge intere sequenze di cluster contigui in una sola chiamata** (fino a 1 MiB), così la decifratura XTS parallela entra in gioco. FAT legge un cluster alla volta tramite `fatfs`, quindi è più lento. Se in P3 la differenza risulterà significativa su un telefono reale, si potrà aggiungere una cache di lettura.
