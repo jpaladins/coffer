@@ -450,3 +450,10 @@ fn file_from_fd(_fd: i32) -> Result<std::fs::File, FfiError> {
         detail: "file descriptors are only supported on Android/Unix".into(),
     })
 }
+
+/// Local time offset (minutes east of UTC) used for new FAT timestamps; FAT
+/// stores local time. exFAT stores UTC with an explicit offset instead.
+#[uniffi::export]
+pub fn set_local_offset_minutes(minutes: i32) {
+    coffer_fat::set_local_offset_minutes(minutes);
+}
