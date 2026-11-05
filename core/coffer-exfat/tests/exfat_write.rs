@@ -216,3 +216,114 @@ fn read_only_open_rejects_writes() {
         Err(CofferError::ReadOnly)
     ));
 }
+
+/// Device that refuses writes in `[from, len)`, like a protected hidden volume.
+struct Guarded {
+    inner: MemDevice,
+    from: u64,
+}
+
+impl BlockDevice for Guarded {
+    fn read_at(&self, off: u64, buf: &mut [u8]) -> Result<(), CofferError> {
+        self.inner.read_at(off, buf)
+    }
+    fn write_at(&self, off: u64, buf: &[u8]) -> Result<(), CofferError> {
+        if off + buf.len() as u64 > self.from {
+            return Err(CofferError::HiddenVolumeProtected);
+        }
+        self.inner.write_at(off, buf)
+    }
+    fn len(&self) -> u64 {
+        self.inner.len()
+    }
+    fn flush(&self) -> Result<(), CofferError> {
+        Ok(())
+    }
+}
+
+/// Bitmap (2), up-case (3) and root (4) are writable; clusters 5.. are protected.
+fn guarded() -> Arc<dyn BlockDevice> {
+    let img = Img::new(4096, 0);
+    let from = img.cluster_offset(5) as u64;
+    Arc::new(Guarded {
+        inner: MemDevice::new(img.bytes),
+        from,
+    })
+}
+
+fn free(fs: &ExFatFs) -> u64 {
+    fs.stats().unwrap().free_bytes.unwrap()
+}
+
+/// Review I1: root growth into a protected area leaves no allocated or
+/// linked cluster behind.
+#[test]
+fn failed_root_growth_releases_its_cluster() {
+    let d = guarded();
+    let fs = ExFatFs::open_rw(d.clone()).unwrap();
+    let mut created = 0;
+    let before = loop {
+        let f = free(&fs);
+        match fs.create_file(&format!("/f{created:04}")) {
+            Ok(()) => created += 1,
+            Err(e) => {
+                assert!(matches!(e, CofferError::HiddenVolumeProtected), "{e:?}");
+                break f;
+            }
+        }
+        assert!(created < 1000);
+    };
+    assert_eq!(free(&fs), before, "cluster leaked");
+    let again = ExFatFs::open(d).unwrap();
+    assert_eq!(again.list("/").unwrap().len(), created);
+    assert_eq!(free(&again), before);
+}
+
+/// Review M4: a write that fails after allocating releases the clusters.
+#[test]
+fn failed_write_releases_allocated_clusters() {
+    let fs = ExFatFs::open_rw(guarded()).unwrap();
+    fs.create_file("/x").unwrap();
+    let before = free(&fs);
+    assert!(matches!(
+        fs.write("/x", 0, &data(5000, 3)),
+        Err(CofferError::HiddenVolumeProtected)
+    ));
+    assert_eq!(free(&fs), before);
+    assert_eq!(fs.stat("/x").unwrap().size, 0);
+}
+
+/// Review C2: listing a directory while another thread fills it must not
+/// poison the path cache used by the writer.
+#[test]
+fn reader_during_writes_does_not_corrupt() {
+    let d = dev(Img::new(16384, 0)); // 512-byte clusters: frequent growth
+    let fs = Arc::new(ExFatFs::open_rw(d.clone()).unwrap());
+    fs.mkdir("/d").unwrap();
+    let done = Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let reader = {
+        let (fs, done) = (fs.clone(), done.clone());
+        std::thread::spawn(move || {
+            while !done.load(std::sync::atomic::Ordering::SeqCst) {
+                let _ = fs.list("/d");
+                let _ = fs.stat("/d");
+                let _ = fs.stat("/d/f010");
+            }
+        })
+    };
+    for i in 0..150u8 {
+        let p = format!("/d/f{i:03}");
+        fs.create_file(&p).unwrap();
+        fs.write(&p, 0, &data(700 + usize::from(i), i)).unwrap();
+    }
+    done.store(true, std::sync::atomic::Ordering::SeqCst);
+    reader.join().unwrap();
+    let again = ExFatFs::open(d).unwrap();
+    assert_eq!(again.list("/d").unwrap().len(), 150);
+    for i in 0..150u8 {
+        assert_eq!(
+            read_all(&again, &format!("/d/f{i:03}")),
+            data(700 + usize::from(i), i)
+        );
+    }
+}

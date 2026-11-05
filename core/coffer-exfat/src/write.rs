@@ -91,6 +91,7 @@ fn now_timestamp() -> (u32, u8) {
 }
 
 /// A stream's allocation while it is being resized.
+#[derive(Clone)]
 struct Stream {
     first: u32,
     contiguous: bool,
@@ -348,16 +349,27 @@ impl ExFatFs {
     }
 
     /// Grows or shrinks the allocation of a stream to hold `new_len` bytes.
+    /// With `zero_new`, new clusters are zeroed before they are linked, so a
+    /// failed zeroing (protected hidden volume) never exposes foreign bytes
+    /// through the FAT chain (the root directory is read to end of chain).
     fn resize_stream(
         &self,
         ws: &mut WriteState,
         st: &mut Stream,
         new_len: u64,
+        zero_new: bool,
     ) -> Result<(), CofferError> {
-        let need = new_len.div_ceil(self.boot.cluster_size()) as usize;
+        let cs = self.boot.cluster_size();
+        let need = new_len.div_ceil(cs) as usize;
         let have = st.chain.len();
         if need > have {
             let new = self.alloc(ws, need - have, st.chain.last().copied())?;
+            if zero_new {
+                if let Err(e) = self.zero_range(&new, 0, new.len() as u64 * cs) {
+                    let _ = self.set_bits(ws, &new, false);
+                    return Err(e);
+                }
+            }
             let appends_in_place =
                 st.chain.last().is_none_or(|l| new[0] == l + 1) && is_contiguous(&new);
             if st.chain.is_empty() {
@@ -389,6 +401,20 @@ impl ExFatFs {
             self.set_bits(ws, &tail, false)?;
         }
         Ok(())
+    }
+
+    /// Undoes the growth of a stream whose entry was not updated: frees the
+    /// added clusters and restores the end of the original FAT chain.
+    fn release_growth(&self, ws: &mut WriteState, before: &Stream, after: &Stream) {
+        if after.chain.len() <= before.chain.len() {
+            return;
+        }
+        let _ = self.set_bits(ws, &after.chain[before.chain.len()..], false);
+        if !before.contiguous {
+            if let Some(last) = before.chain.last() {
+                let _ = self.write_fat(*last, END_OF_CHAIN);
+            }
+        }
     }
 
     /// Builds a File + Stream + FileName entry set (§7.4–7.7).
@@ -550,9 +576,9 @@ impl ExFatFs {
         if loc.is_root {
             st.contiguous = false;
         }
-        self.resize_stream(ws, &mut st, new_len)?;
+        let before = st.clone();
         // New directory clusters must read as end-of-directory (zeros).
-        self.zero_range(&st.chain, loc.len, new_len)?;
+        self.resize_stream(ws, &mut st, new_len, true)?;
         let new_loc = DirLoc {
             first: st.first,
             contiguous: st.contiguous,
@@ -570,7 +596,10 @@ impl ExFatFs {
                 new_len,
                 new_len,
             )?;
-            self.write_set(&d.parent, d.slot, &set)?;
+            if let Err(err) = self.write_set(&d.parent, d.slot, &set) {
+                self.release_growth(ws, &before, &st);
+                return Err(err);
+            }
         }
         Ok((new_loc, start))
     }
@@ -627,25 +656,34 @@ impl ExFatFs {
             .ok_or_else(|| CofferError::InvalidPath(path.to_string()))?;
         let new_len = e.data_length.max(end);
         self.mark_dirty(&mut ws)?;
-        let mut st = self.stream_of(&e)?;
-        self.resize_stream(&mut ws, &mut st, new_len)?;
-        // Bytes between ValidDataLength and the write must read as zero.
-        if offset > e.valid_data_length {
-            self.zero_range(&st.chain, e.valid_data_length, offset)?;
+        let before = self.stream_of(&e)?;
+        let mut st = before.clone();
+        self.resize_stream(&mut ws, &mut st, new_len, false)?;
+        let written = (|| {
+            // Bytes between ValidDataLength and the write must read as zero.
+            if offset > e.valid_data_length {
+                self.zero_range(&st.chain, e.valid_data_length, offset)?;
+            }
+            self.write_clusters(&st.chain, offset, data)?;
+            let valid = e.valid_data_length.max(end);
+            let set = Self::build_set(
+                &ws,
+                &e.name,
+                e.attrs,
+                Some(&e.file_raw),
+                st.first,
+                st.contiguous,
+                new_len,
+                valid,
+            )?;
+            self.write_set(&e.parent, e.slot, &set)
+        })();
+        if let Err(err) = written {
+            // The entry still describes `before`: release what was added.
+            self.release_growth(&mut ws, &before, &st);
+            self.invalidate();
+            return Err(err);
         }
-        self.write_clusters(&st.chain, offset, data)?;
-        let valid = e.valid_data_length.max(end);
-        let set = Self::build_set(
-            &ws,
-            &e.name,
-            e.attrs,
-            Some(&e.file_raw),
-            st.first,
-            st.contiguous,
-            new_len,
-            valid,
-        )?;
-        self.write_set(&e.parent, e.slot, &set)?;
         self.invalidate();
         Ok(())
     }
@@ -654,8 +692,9 @@ impl ExFatFs {
         let mut ws = self.ws()?;
         let e = self.file(path)?;
         self.mark_dirty(&mut ws)?;
-        let mut st = self.stream_of(&e)?;
-        self.resize_stream(&mut ws, &mut st, len)?;
+        let before = self.stream_of(&e)?;
+        let mut st = before.clone();
+        self.resize_stream(&mut ws, &mut st, len, false)?;
         // Growing keeps ValidDataLength: the new tail reads as zero.
         let valid = e.valid_data_length.min(len);
         let set = Self::build_set(
@@ -668,7 +707,11 @@ impl ExFatFs {
             len,
             valid,
         )?;
-        self.write_set(&e.parent, e.slot, &set)?;
+        if let Err(err) = self.write_set(&e.parent, e.slot, &set) {
+            self.release_growth(&mut ws, &before, &st);
+            self.invalidate();
+            return Err(err);
+        }
         self.invalidate();
         Ok(())
     }

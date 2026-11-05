@@ -5,7 +5,7 @@ use crate::fat::{chain_for_len, chain_until_end};
 use coffer_vfs::{names_equal, split_path, CofferError, DirEntry, Filesystem, FsKind, FsStats};
 use coffer_volume::BlockDevice;
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, RwLock};
 
 /// Spec: a directory is at most 256 MiB.
 const MAX_DIR_BYTES: u64 = 256 * 1024 * 1024;
@@ -30,6 +30,10 @@ pub struct ExFatFs {
     pub(crate) chain_cache: Mutex<Vec<CachedChain>>,
     /// Resolved paths, so each read does not re-read every parent directory.
     pub(crate) path_cache: Mutex<HashMap<String, ExEntry>>,
+    /// Writes are exclusive: a reader running during a write could read a
+    /// half-updated directory and put a stale entry into `path_cache`,
+    /// which the next write would then trust.
+    pub(crate) ops: RwLock<()>,
 }
 
 pub(crate) enum Node {
@@ -58,6 +62,7 @@ impl ExFatFs {
             writer: None,
             chain_cache: Mutex::new(Vec::new()),
             path_cache: Mutex::new(HashMap::new()),
+            ops: RwLock::new(()),
         })
     }
 
@@ -247,6 +252,7 @@ impl Filesystem for ExFatFs {
     }
 
     fn stat(&self, path: &str) -> Result<DirEntry, CofferError> {
+        let _ops = self.ops.read().unwrap_or_else(|p| p.into_inner());
         Ok(match self.resolve(path)? {
             Node::Root => DirEntry {
                 name: String::new(),
@@ -259,6 +265,7 @@ impl Filesystem for ExFatFs {
     }
 
     fn list(&self, path: &str) -> Result<Vec<DirEntry>, CofferError> {
+        let _ops = self.ops.read().unwrap_or_else(|p| p.into_inner());
         let node = self.resolve(path)?;
         Ok(self
             .dir_entries(&node, path)?
@@ -268,6 +275,7 @@ impl Filesystem for ExFatFs {
     }
 
     fn read(&self, path: &str, offset: u64, buf: &mut [u8]) -> Result<usize, CofferError> {
+        let _ops = self.ops.read().unwrap_or_else(|p| p.into_inner());
         let e = match self.resolve(path)? {
             Node::Entry(e) if !e.is_dir => e,
             _ => return Err(CofferError::IsADirectory(path.to_string())),
@@ -293,34 +301,42 @@ impl Filesystem for ExFatFs {
     }
 
     fn create_file(&self, path: &str) -> Result<(), CofferError> {
+        let _ops = self.ops.write().unwrap_or_else(|p| p.into_inner());
         self.do_create(path, false)
     }
 
     fn mkdir(&self, path: &str) -> Result<(), CofferError> {
+        let _ops = self.ops.write().unwrap_or_else(|p| p.into_inner());
         self.do_create(path, true)
     }
 
     fn write(&self, path: &str, offset: u64, data: &[u8]) -> Result<(), CofferError> {
+        let _ops = self.ops.write().unwrap_or_else(|p| p.into_inner());
         self.do_write(path, offset, data)
     }
 
     fn set_len(&self, path: &str, len: u64) -> Result<(), CofferError> {
+        let _ops = self.ops.write().unwrap_or_else(|p| p.into_inner());
         self.do_set_len(path, len)
     }
 
     fn remove(&self, path: &str) -> Result<(), CofferError> {
+        let _ops = self.ops.write().unwrap_or_else(|p| p.into_inner());
         self.do_remove(path)
     }
 
     fn rename(&self, from: &str, to: &str) -> Result<(), CofferError> {
+        let _ops = self.ops.write().unwrap_or_else(|p| p.into_inner());
         self.do_rename(from, to)
     }
 
     fn sync(&self) -> Result<(), CofferError> {
+        let _ops = self.ops.write().unwrap_or_else(|p| p.into_inner());
         self.do_sync()
     }
 
     fn stats(&self) -> Result<FsStats, CofferError> {
+        let _ops = self.ops.read().unwrap_or_else(|p| p.into_inner());
         let cs = self.boot.cluster_size();
         let total = u64::from(self.boot.cluster_count) * cs;
         // One bit per cluster; the on-disk DataLength is only checked to be
