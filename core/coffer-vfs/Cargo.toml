@@ -1,0 +1,10 @@
+[package]
+name = "coffer-vfs"
+description = "Filesystem trait, path rules and filesystem detection for Coffer"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+coffer-crypto.workspace = true

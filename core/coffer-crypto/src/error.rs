@@ -17,6 +17,14 @@ pub enum CofferError {
     Io(String),
     #[error("unsupported: {0}")]
     Unsupported(String),
+    #[error("not found: {0}")]
+    NotFound(String),
+    #[error("not a directory: {0}")]
+    NotADirectory(String),
+    #[error("is a directory: {0}")]
+    IsADirectory(String),
+    #[error("invalid path: {0}")]
+    InvalidPath(String),
 }
 
 impl From<std::io::Error> for CofferError {

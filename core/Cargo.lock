@@ -108,6 +108,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "coffer-vfs"
+version = "0.1.0"
+dependencies = [
+ "coffer-crypto",
+]
+
+[[package]]
 name = "coffer-volume"
 version = "0.1.0"
 dependencies = [

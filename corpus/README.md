@@ -16,6 +16,19 @@ Note sulla versione verificata (1.26.29):
 - Un PIM minore di 485 richiede una password di almeno 20 caratteri.
 - Il formato exFAT richiede il driver VeraCrypt aggiornato: dopo un aggiornamento di VeraCrypt va riavviato il PC prima di creare volumi exFAT con Argon2id (verificato: dopo il riavvio `aes-argon2-exfat.hc` si crea correttamente).
 
+## Contenuto noto (P2)
+
+`populate.ps1` monta un container con VeraCrypt (non servono i permessi di amministratore), scrive un albero di file deterministico (file da 0 a 3 MiB, nomi Unicode e lunghi, 300 file in una directory, un file frammentato) e salva `out/content-<container>.json` con dimensione e SHA-256 di ogni file. I file vengono scritti da Windows, che fa da oracolo per i lettori FAT ed exFAT di Coffer.
+
+```powershell
+powershell -ExecutionPolicy Bypass -File corpus\populate.ps1 -File aes-sha512-fat-fat12.hc -Password coffer-test -Small
+powershell -ExecutionPolicy Bypass -File corpus\populate.ps1 -File aes-sha512-fat.hc       -Password coffer-test
+powershell -ExecutionPolicy Bypass -File corpus\populate.ps1 -File aes-sha512-fat-fat32.hc -Password coffer-test
+powershell -ExecutionPolicy Bypass -File corpus\populate.ps1 -File aes-sha512-exfat.hc     -Password coffer-test
+```
+
+Nota: il montaggio da riga di comando di un volume Argon2id (`/hash argon2`) apre una finestra di dialogo nonostante `/s` e non viene popolato.
+
 ## Test
 
 ```powershell

@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["coffer-crypto", "coffer-volume"]
+members = ["coffer-crypto", "coffer-volume", "coffer-vfs"]
 
 [workspace.package]
 version = "0.1.0"
@@ -10,6 +10,10 @@ publish = false
 
 [workspace.dependencies]
 coffer-crypto = { path = "coffer-crypto" }
+coffer-volume = { path = "coffer-volume" }
+coffer-vfs = { path = "coffer-vfs" }
+coffer-fat = { path = "coffer-fat" }
+coffer-exfat = { path = "coffer-exfat" }
 thiserror = "2"
 zeroize = { version = "1", features = ["zeroize_derive"] }
 rayon = "1"
