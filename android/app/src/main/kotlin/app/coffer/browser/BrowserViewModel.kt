@@ -68,7 +68,8 @@ class BrowserViewModel @AssistedInject constructor(
 
     private fun handle() = sessions.session(vaultId)?.handle
 
-    fun vaultIdForUi(): String = vaultId
+    /** Per-session token for share URIs; null once the vault is locked. */
+    fun shareToken(): String? = sessions.session(vaultId)?.token
 
     private fun load(path: String) {
         val session = sessions.session(vaultId)

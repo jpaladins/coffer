@@ -12,7 +12,6 @@ import dagger.assisted.Assisted
 import dagger.assisted.AssistedFactory
 import dagger.assisted.AssistedInject
 import dagger.hilt.android.lifecycle.HiltViewModel
-import java.io.ByteArrayOutputStream
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -82,18 +81,23 @@ class ViewerViewModel @AssistedInject constructor(
             }
         } catch (e: CofferException) {
             ViewerContent.Failed(e)
+        } catch (_: OutOfMemoryError) {
+            // The size limit is a ceiling; a small heap can still run out.
+            ViewerContent.TooLarge
         }
     }
 
+    /** Reads exactly [limit] bytes (or up to EOF) into one array: no second copy. */
     private fun readAll(h: app.coffer.data.VaultHandle, limit: Long): ByteArray {
-        val out = ByteArrayOutputStream(limit.toInt())
-        var off = 0L
-        while (off < limit) {
-            val chunk = h.read(path, off, minOf(1L shl 20, limit - off).toInt())
+        val out = ByteArray(limit.toInt())
+        var off = 0
+        while (off < out.size) {
+            val chunk = h.read(path, off.toLong(), minOf(1 shl 20, out.size - off))
             if (chunk.isEmpty()) break
-            out.write(chunk)
+            chunk.copyInto(out, off)
             off += chunk.size
+            chunk.fill(0)
         }
-        return out.toByteArray()
+        return if (off == out.size) out else out.copyOf(off)
     }
 }

@@ -3,7 +3,9 @@ package app.coffer.data
 
 import java.io.FileNotFoundException
 import java.nio.CharBuffer
+import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.CopyOnWriteArrayList
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -27,7 +29,15 @@ class UnlockRequest(
     val tryBackupHeaders: Boolean = false,
 )
 
-data class VaultSession(val ref: VaultRef, val handle: VaultHandle)
+/**
+ * [token] is random per unlock: share URIs ("Open with") use it instead of
+ * the stable vault id, so a grant cannot be replayed after a later unlock.
+ */
+data class VaultSession(
+    val ref: VaultRef,
+    val handle: VaultHandle,
+    val token: String = UUID.randomUUID().toString(),
+)
 
 /** VeraCrypt processes only the first 1 MiB of each keyfile. */
 private const val KEYFILE_MAX = 1 shl 20
@@ -47,17 +57,33 @@ class SessionManager(
     private val io: CoroutineDispatcher,
     private val maxKdfMemory: () -> Long,
 ) {
-    private val sessions = ConcurrentHashMap<String, VaultSession>()
+    private val lock = Any()
+    private val sessions = HashMap<String, VaultSession>()
     private val _openIds = MutableStateFlow<Set<String>>(emptySet())
     val openIds: StateFlow<Set<String>> = _openIds.asStateFlow()
 
+    /** Bumped by [closeAll]; unlocks started in an older epoch are discarded. */
+    private var epoch = 0L
+    private val inFlight = ConcurrentHashMap.newKeySet<CancelSignal>()
+    private val closeListeners = CopyOnWriteArrayList<(VaultSession) -> Unit>()
+
     fun newCancel(): CancelSignal = native.newCancel()
 
-    fun session(id: String): VaultSession? = sessions[id]
+    fun session(id: String): VaultSession? = synchronized(lock) { sessions[id] }
+
+    fun sessionByToken(token: String): VaultSession? =
+        synchronized(lock) { sessions.values.firstOrNull { it.token == token } }
+
+    /** Called after a session is locked (e.g. to revoke share grants). */
+    fun addCloseListener(listener: (VaultSession) -> Unit) {
+        closeListeners += listener
+    }
 
     /** @throws CofferException */
     suspend fun unlock(ref: VaultRef, req: UnlockRequest, cancel: CancelSignal): VaultSession =
         withContext(io) {
+            val startEpoch = synchronized(lock) { epoch }
+            inFlight += cancel
             val password = req.password.toUtf8Bytes()
             req.password.fill('\u0000')
             val keyfiles = mutableListOf<ByteArray>()
@@ -80,24 +106,47 @@ class SessionManager(
                     }
                 }
                 val session = VaultSession(ref, handle)
-                sessions[ref.id]?.handle?.lock()
-                sessions[ref.id] = session
-                _openIds.value = sessions.keys.toSet()
-                store.rememberPrf(ref.id, handle.info.prf)
+                val replaced = synchronized(lock) {
+                    if (epoch != startEpoch) {
+                        // closeAll() (auto-lock) ran while the KDF was busy.
+                        handle.lock()
+                        throw CofferException.Cancelled()
+                    }
+                    sessions.put(ref.id, session).also { _openIds.value = sessions.keys.toSet() }
+                }
+                replaced?.let(::locked)
+                runCatching { store.rememberPrf(ref.id, handle.info.prf) }
                 session
             } finally {
+                inFlight -= cancel
                 password.fill(0)
                 keyfiles.forEach { it.fill(0) }
             }
         }
 
-    fun close(id: String) {
-        sessions.remove(id)?.handle?.lock()
-        _openIds.value = sessions.keys.toSet()
+    private fun locked(s: VaultSession) {
+        s.handle.lock()
+        closeListeners.forEach { runCatching { it(s) } }
     }
 
+    fun close(id: String) {
+        val s = synchronized(lock) {
+            sessions.remove(id).also { _openIds.value = sessions.keys.toSet() }
+        }
+        s?.let(::locked)
+    }
+
+    /** Locks everything and aborts unlocks still running (auto-lock). */
     fun closeAll() {
-        sessions.keys.toList().forEach(::close)
+        val all = synchronized(lock) {
+            epoch++
+            sessions.values.toList().also {
+                sessions.clear()
+                _openIds.value = emptySet()
+            }
+        }
+        inFlight.forEach { it.cancel() }
+        all.forEach(::locked)
     }
 
     private inline fun <T> platform(block: () -> T): T =

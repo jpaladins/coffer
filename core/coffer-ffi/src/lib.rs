@@ -75,15 +75,71 @@ impl FfiCancel {
     }
 }
 
+/// Non-secret unlock options. Password and keyfiles never travel in a
+/// UniFFI record: lifting copies them into buffers that are freed unwiped.
 #[derive(uniffi::Record)]
-pub struct FfiCredentials {
-    pub password: Vec<u8>,
+pub struct FfiOpenOptions {
     pub pim: u32,
-    pub keyfiles: Vec<Vec<u8>>,
     /// KDF name as in `Prf::name()` ("SHA-512", "Argon2id"…); None = detect.
     pub prf: Option<String>,
     pub max_kdf_memory: u64,
     pub try_backup_headers: bool,
+}
+
+/// Password and keyfiles copied out of caller-owned memory.
+pub struct Secrets {
+    pub password: Zeroizing<Vec<u8>>,
+    pub keyfiles: Vec<Zeroizing<Vec<u8>>>,
+}
+
+/// Largest secrets blob accepted (password + keyfile prefixes).
+const MAX_SECRETS: u64 = 64 * 1024 * 1024;
+
+struct Cursor<'a> {
+    src: &'a [u8],
+    pos: usize,
+}
+
+impl<'a> Cursor<'a> {
+    fn take(&mut self, n: usize) -> Result<&'a [u8], FfiError> {
+        let end = self.pos.checked_add(n).ok_or_else(malformed)?;
+        let out = self.src.get(self.pos..end).ok_or_else(malformed)?;
+        self.pos = end;
+        Ok(out)
+    }
+
+    fn u32(&mut self) -> Result<usize, FfiError> {
+        let b = self.take(4)?;
+        Ok(u32::from_le_bytes([b[0], b[1], b[2], b[3]]) as usize)
+    }
+}
+
+fn malformed() -> FfiError {
+    FfiError::InvalidPath {
+        path: "malformed secrets".into(),
+    }
+}
+
+fn parse_secrets(src: &[u8]) -> Result<Secrets, FfiError> {
+    let mut c = Cursor { src, pos: 0 };
+    let pw_len = c.u32()?;
+    let password = Zeroizing::new(c.take(pw_len)?.to_vec());
+    let n = c.u32()?;
+    let mut keyfiles = Vec::new();
+    for _ in 0..n {
+        let len = c.u32()?;
+        keyfiles.push(Zeroizing::new(c.take(len)?.to_vec()));
+    }
+    Ok(Secrets { password, keyfiles })
+}
+
+/// Parses `[u32 len][password][u32 count]([u32 len][keyfile])*` (little
+/// endian) and wipes `src`, whether or not parsing succeeds.
+pub fn take_secrets(src: &mut [u8]) -> Result<Secrets, FfiError> {
+    use zeroize::Zeroize;
+    let r = parse_secrets(src);
+    src.zeroize();
+    r
 }
 
 #[derive(uniffi::Record, Debug, Clone, PartialEq, Eq)]
@@ -189,31 +245,37 @@ impl FfiVault {
     }
 }
 
-fn to_credentials(c: FfiCredentials) -> Result<(Credentials, OpenOptions), FfiError> {
-    let password = Zeroizing::new(c.password);
-    let mut creds = Credentials::new(&password);
-    creds.pim = c.pim;
-    creds.keyfiles = c.keyfiles.into_iter().map(Zeroizing::new).collect();
-    creds.max_kdf_memory = c.max_kdf_memory;
-    creds.prf_hint = match c.prf {
+fn to_credentials(
+    secrets: Secrets,
+    o: FfiOpenOptions,
+) -> Result<(Credentials, OpenOptions), FfiError> {
+    let mut creds = Credentials::new(&secrets.password);
+    creds.pim = o.pim;
+    creds.keyfiles = secrets.keyfiles;
+    creds.max_kdf_memory = o.max_kdf_memory;
+    creds.prf_hint = match o.prf {
         None => None,
         Some(name) => Some(Prf::from_name(&name).ok_or(FfiError::Unsupported {
             detail: format!("unknown KDF {name}"),
         })?),
     };
     let opts = OpenOptions {
-        try_backup_headers: c.try_backup_headers,
+        try_backup_headers: o.try_backup_headers,
     };
     Ok((creds, opts))
 }
 
 /// Opens a container from any block device and mounts its filesystem.
-pub fn open_device(
+/// Opens a container from any block device; `secret` (see [`take_secrets`])
+/// is wiped.
+pub fn open_device_secret(
     dev: Arc<dyn BlockDevice>,
-    creds: FfiCredentials,
+    secret: &mut [u8],
+    options: FfiOpenOptions,
     cancel: Arc<FfiCancel>,
 ) -> Result<Arc<FfiVault>, FfiError> {
-    let (creds, opts) = to_credentials(creds)?;
+    let secrets = take_secrets(secret)?;
+    let (creds, opts) = to_credentials(secrets, options)?;
     if cancel.token.is_cancelled() {
         return Err(FfiError::Cancelled);
     }
@@ -241,28 +303,33 @@ pub fn open_device(
 
 /// Opens a container from a file descriptor obtained from Android's
 /// ContentResolver (`ParcelFileDescriptor.detachFd()`). Takes ownership of
-/// `fd`: it is closed when the vault is closed or dropped.
+/// `fd`: it is closed when the vault is dropped.
+///
+/// `secret_ptr`/`secret_len` point to caller-owned native memory (JNA
+/// `Memory`) holding the secrets blob described in [`take_secrets`]; it is
+/// read in place and wiped, so no copy of the password is left behind by
+/// UniFFI's buffer handling. The caller must keep it alive for the call.
 #[uniffi::export]
-pub fn open_fd(
+pub fn open_fd_secret(
     fd: i32,
     writable: bool,
-    creds: FfiCredentials,
+    secret_ptr: u64,
+    secret_len: u64,
+    options: FfiOpenOptions,
     cancel: Arc<FfiCancel>,
 ) -> Result<Arc<FfiVault>, FfiError> {
     let file = file_from_fd(fd)?;
+    if secret_ptr == 0 || secret_len > MAX_SECRETS {
+        return Err(FfiError::InvalidPath {
+            path: "invalid secrets buffer".into(),
+        });
+    }
+    // SAFETY: the caller guarantees `secret_len` writable bytes at
+    // `secret_ptr` for the duration of this call (Kotlin JNA Memory).
+    let secret =
+        unsafe { std::slice::from_raw_parts_mut(secret_ptr as *mut u8, secret_len as usize) };
     let dev: Arc<dyn BlockDevice> = Arc::new(FileDevice::from_file(file, writable)?);
-    open_device(dev, creds, cancel)
-}
-
-/// Opens a container by path (tests and tools; the app uses `open_fd`).
-#[uniffi::export]
-pub fn open_path(
-    path: String,
-    creds: FfiCredentials,
-    cancel: Arc<FfiCancel>,
-) -> Result<Arc<FfiVault>, FfiError> {
-    let dev: Arc<dyn BlockDevice> = Arc::new(FileDevice::open(path, false)?);
-    open_device(dev, creds, cancel)
+    open_device_secret(dev, secret, options, cancel)
 }
 
 #[cfg(unix)]

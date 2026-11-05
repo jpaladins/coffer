@@ -49,6 +49,14 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.editableText
+import androidx.compose.ui.semantics.onClick
+import androidx.compose.ui.semantics.password
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.res.stringResource
@@ -113,6 +121,8 @@ fun UnlockContent(
     // Deliberately not rememberSaveable: the password must not be written
     // to the saved-instance Bundle, so it is lost on rotation.
     val password = remember { TextFieldState() }
+    val passwordFocus = remember { FocusRequester() }
+    val passwordLabel = stringResource(R.string.unlock_password)
     var showAdvanced by remember { mutableStateOf(false) }
     Scaffold(
         topBar = {
@@ -138,7 +148,17 @@ fun UnlockContent(
                 label = { Text(stringResource(R.string.unlock_password)) },
                 textObfuscationMode = TextObfuscationMode.RevealLastTyped,
                 enabled = !state.busy,
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .focusRequester(passwordFocus)
+                    // Accessibility services get only a masked value: the
+                    // default semantics exposed the password text in clear.
+                    .clearAndSetSemantics {
+                        contentDescription = passwordLabel
+                        password()
+                        editableText = AnnotatedString("•".repeat(password.text.length))
+                        onClick { passwordFocus.requestFocus(); true }
+                    },
                 // Password keyboard: no suggestions, no learning, no autocorrect.
                 keyboardOptions = KeyboardOptions(
                     keyboardType = KeyboardType.Password,

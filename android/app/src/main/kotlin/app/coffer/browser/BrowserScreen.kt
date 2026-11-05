@@ -100,7 +100,8 @@ fun BrowserScreen(viewModel: BrowserViewModel, onExit: () -> Unit, onOpenFile: (
             exportPicker.launch(entry.name)
         },
         onOpenWith = { entry ->
-            val uri = VaultFileProvider.uriFor(viewModel.vaultIdForUi(), childPath(state.path, entry.name))
+            val token = viewModel.shareToken() ?: return@BrowserContent
+            val uri = VaultFileProvider.uriFor(token, childPath(state.path, entry.name))
             val view = Intent(Intent.ACTION_VIEW)
                 .setDataAndType(uri, MimeTypes.mime(entry.name))
                 .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 use coffer_crypto::{encrypt_header, CipherSuite, Credentials, Prf, VolumeHeader, XtsCascade};
-use coffer_ffi::{open_device, FfiCancel, FfiCredentials, FfiError, MAX_READ};
+use coffer_ffi::{open_device_secret, FfiCancel, FfiError, MAX_READ};
 use coffer_volume::{BlockDevice, MemDevice, DATA_START};
 use std::io::{Cursor, Write};
 use std::sync::Arc;
@@ -57,26 +57,22 @@ fn big() -> Vec<u8> {
     (0..300_000u32).map(|i| (i % 241) as u8).collect()
 }
 
-fn creds(pw: &str) -> FfiCredentials {
-    FfiCredentials {
-        password: pw.as_bytes().to_vec(),
-        pim: 1,
-        keyfiles: vec![],
-        prf: Some("SHA-512".into()),
-        max_kdf_memory: 1 << 30,
-        try_backup_headers: false,
-    }
+fn open(
+    pw: &str,
+    cancel: std::sync::Arc<FfiCancel>,
+) -> Result<std::sync::Arc<coffer_ffi::FfiVault>, FfiError> {
+    open_device_secret(container(), &mut blob(pw.as_bytes(), &[]), opts(), cancel)
 }
 
 #[test]
 fn wrong_password_maps_to_wrong_credentials() {
-    let r = open_device(container(), creds("nope"), FfiCancel::new());
+    let r = open("nope", FfiCancel::new());
     assert!(matches!(r, Err(FfiError::WrongCredentials)));
 }
 
 #[test]
 fn list_and_read_roundtrip() {
-    let v = open_device(container(), creds("ffi-pass"), FfiCancel::new()).unwrap();
+    let v = open("ffi-pass", FfiCancel::new()).unwrap();
     let info = v.info();
     assert_eq!(info.cipher, "AES");
     assert_eq!(info.prf, "SHA-512");
@@ -109,13 +105,13 @@ fn list_and_read_roundtrip() {
 
 #[test]
 fn read_len_cap() {
-    let v = open_device(container(), creds("ffi-pass"), FfiCancel::new()).unwrap();
+    let v = open("ffi-pass", FfiCancel::new()).unwrap();
     assert!(v.read("/hello.txt".into(), 0, MAX_READ + 1).is_err());
 }
 
 #[test]
 fn errors_are_mapped() {
-    let v = open_device(container(), creds("ffi-pass"), FfiCancel::new()).unwrap();
+    let v = open("ffi-pass", FfiCancel::new()).unwrap();
     assert!(matches!(
         v.stat("/missing".into()),
         Err(FfiError::NotFound { .. })
@@ -136,7 +132,7 @@ fn errors_are_mapped() {
 
 #[test]
 fn closed_vault_errors() {
-    let v = open_device(container(), creds("ffi-pass"), FfiCancel::new()).unwrap();
+    let v = open("ffi-pass", FfiCancel::new()).unwrap();
     v.lock();
     assert!(matches!(v.list("/".into()), Err(FfiError::Closed)));
     v.lock(); // idempotent
@@ -146,6 +142,57 @@ fn closed_vault_errors() {
 fn cancel_maps_to_cancelled() {
     let c = FfiCancel::new();
     c.cancel();
-    let r = open_device(container(), creds("ffi-pass"), c);
+    let r = open("ffi-pass", c);
     assert!(matches!(r, Err(FfiError::Cancelled)));
+}
+
+// ---- secrets passed through caller-owned memory (review P3 #3) ----
+
+fn blob(pw: &[u8], keyfiles: &[&[u8]]) -> Vec<u8> {
+    let mut b = (pw.len() as u32).to_le_bytes().to_vec();
+    b.extend_from_slice(pw);
+    b.extend_from_slice(&(keyfiles.len() as u32).to_le_bytes());
+    for k in keyfiles {
+        b.extend_from_slice(&(k.len() as u32).to_le_bytes());
+        b.extend_from_slice(k);
+    }
+    b
+}
+
+#[test]
+fn secret_blob_is_parsed_and_source_wiped() {
+    let mut b = blob(b"ffi-pass", &[b"kf1", b""]);
+    let s = coffer_ffi::take_secrets(&mut b).unwrap();
+    assert_eq!(s.password.as_slice(), b"ffi-pass");
+    assert_eq!(s.keyfiles.len(), 2);
+    assert_eq!(s.keyfiles[0].as_slice(), b"kf1");
+    assert!(b.iter().all(|x| *x == 0), "source not wiped");
+}
+
+#[test]
+fn malformed_secret_blob_is_rejected_and_wiped() {
+    for mut b in [vec![9, 0, 0, 0, 1, 2], vec![1, 0], {
+        let mut v = blob(b"pw", &[]);
+        v[6] = 5; // keyfile count 5 but no keyfiles
+        v
+    }] {
+        assert!(coffer_ffi::take_secrets(&mut b).is_err());
+        assert!(b.iter().all(|x| *x == 0));
+    }
+}
+
+#[test]
+fn open_with_secrets_roundtrip() {
+    let mut b = blob(b"ffi-pass", &[]);
+    let v = coffer_ffi::open_device_secret(container(), &mut b, opts(), FfiCancel::new()).unwrap();
+    assert_eq!(v.read("/hello.txt".into(), 0, 100).unwrap(), b"hello ffi");
+}
+
+fn opts() -> coffer_ffi::FfiOpenOptions {
+    coffer_ffi::FfiOpenOptions {
+        pim: 1,
+        prf: Some("SHA-512".into()),
+        max_kdf_memory: 1 << 30,
+        try_backup_headers: false,
+    }
 }

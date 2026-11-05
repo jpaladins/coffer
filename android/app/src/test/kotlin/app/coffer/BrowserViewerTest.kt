@@ -145,6 +145,19 @@ class BrowserViewerTest {
     }
 
     @Test
+    fun out_of_memory_while_loading_image_shows_too_large() = runTest {
+        val h = object : app.coffer.data.VaultHandle by FakeHandle(files = mapOf("/p.jpg" to ByteArray(10))) {
+            override fun read(path: String, offset: Long, len: Int): ByteArray = throw OutOfMemoryError("test")
+        }
+        val store = FakeStore(ref)
+        val sm = SessionManager(store, FakeNative(handle = { h }), FakeOpener(), StandardTestDispatcher(testScheduler), { 1L shl 30 })
+        sm.unlock(ref, UnlockRequest("secret".toCharArray(), 0, emptyList(), null), sm.newCancel())
+        val vm = ViewerViewModel("v1", "/p.jpg", sm, StandardTestDispatcher(testScheduler))
+        advanceUntilIdle()
+        assertEquals(ViewerContent.TooLarge, vm.uiState.value.content)
+    }
+
+    @Test
     fun proxy_reader_reads_ranges_and_fails_after_lock() {
         val h = FakeHandle(files = mapOf("/f" to ByteArray(100) { it.toByte() }))
         val r = ProxyReader(h, "/f")

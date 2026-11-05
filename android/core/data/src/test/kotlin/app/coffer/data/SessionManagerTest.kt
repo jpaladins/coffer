@@ -146,4 +146,58 @@ class SessionManagerTest {
         assertEquals("v1", s.ref.id)
         assertNull(native.lastCreds!!.prf)
     }
+
+    @Test
+    fun destroyed_native_object_maps_to_Closed() {
+        val e = mapNativeError(IllegalStateException("FfiVault object has already been destroyed"))
+        assertTrue(e is CofferException.Closed)
+    }
+
+    /** An unlock that completes after closeAll() (auto-lock) must not leave the vault open. */
+    @Test
+    fun unlock_finishing_after_closeAll_is_discarded() {
+        val started = java.util.concurrent.CountDownLatch(1)
+        val release = java.util.concurrent.CountDownLatch(1)
+        val handle = FakeHandle(VolumeInfo("AES", "SHA-512", false, false, "exFAT", 1))
+        val native = object : NativeVaults {
+            override fun newCancel() = object : CancelSignal { override fun cancel() {} }
+            override fun open(fd: Int, creds: NativeCredentials, cancel: CancelSignal): VaultHandle {
+                started.countDown()
+                release.await() // ignores cancel, like a KDF that cannot stop
+                return handle
+            }
+        }
+        val sm = SessionManager(FakeStore(), native, FakeOpener(), kotlinx.coroutines.Dispatchers.IO, { 1L shl 30 })
+        val result = java.util.concurrent.atomic.AtomicReference<Throwable?>()
+        val t = Thread {
+            try {
+                kotlinx.coroutines.runBlocking { sm.unlock(ref, req("secret"), sm.newCancel()) }
+            } catch (e: Throwable) {
+                result.set(e)
+            }
+        }
+        t.start()
+        started.await()
+        sm.closeAll()
+        release.countDown()
+        t.join(5000)
+        assertTrue(result.get() is CofferException.Cancelled)
+        assertTrue(handle.locked)
+        assertTrue(sm.openIds.value.isEmpty())
+    }
+
+    @Test
+    fun share_token_is_per_session_and_dies_with_it() = runTest {
+        val sm = SessionManager(FakeStore(), FakeNative("secret"), FakeOpener(), StandardTestDispatcher(testScheduler), { 1L shl 30 })
+        val closed = mutableListOf<String>()
+        sm.addCloseListener { closed += it.token }
+        val first = sm.unlock(ref, req("secret"), sm.newCancel())
+        assertEquals(first, sm.sessionByToken(first.token))
+        sm.close("v1")
+        assertNull(sm.sessionByToken(first.token))
+        assertEquals(listOf(first.token), closed)
+        val second = sm.unlock(ref, req("secret"), sm.newCancel())
+        assertTrue(first.token != second.token)
+        assertNull(sm.sessionByToken(first.token))
+    }
 }

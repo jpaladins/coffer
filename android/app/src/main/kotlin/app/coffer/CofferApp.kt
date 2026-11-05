@@ -2,6 +2,8 @@
 package app.coffer
 
 import android.app.Application
+import android.content.Intent
+import app.coffer.provider.VaultFileProvider
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ProcessLifecycleOwner
@@ -19,6 +21,10 @@ class CofferApp : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        // Apps that received an "Open with" grant lose it when the vault locks.
+        sessions.addCloseListener { s ->
+            revokeUriPermission(VaultFileProvider.sessionRoot(s.token), Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
         val autoLock = AutoLock(MainScope(), timeoutMs = settings::currentAutoLockMs, lockAll = sessions::closeAll)
         ProcessLifecycleOwner.get().lifecycle.addObserver(object : DefaultLifecycleObserver {
             override fun onStop(owner: LifecycleOwner) = autoLock.onBackground()

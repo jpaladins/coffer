@@ -28,7 +28,9 @@ import java.io.FileNotFoundException
  * copy on disk: every read is served from the vault through a proxy file
  * descriptor (spec §5.3). Once the vault is locked, reads fail with EIO.
  *
- * URI: content://app.coffer.files/<vaultId>/<path segments...>
+ * URI: content://app.coffer.files/<session token>/<path segments...>. The
+ * token is random per unlock, so a grant dies with the session; grants are
+ * also revoked explicitly when the session is locked (CofferApp).
  */
 class VaultFileProvider : ContentProvider() {
     @EntryPoint
@@ -54,7 +56,7 @@ class VaultFileProvider : ContentProvider() {
 
     override fun query(uri: Uri, projection: Array<out String>?, selection: String?, args: Array<out String>?, sort: String?): Cursor {
         val (id, path) = target(uri)
-        val entry = sessions.session(id)?.handle?.let { runCatching { it.stat(path) }.getOrNull() }
+        val entry = sessions.sessionByToken(id)?.handle?.let { runCatching { it.stat(path) }.getOrNull() }
             ?: throw FileNotFoundException(uri.toString())
         val cols = projection ?: arrayOf(OpenableColumns.DISPLAY_NAME, OpenableColumns.SIZE)
         return MatrixCursor(cols, 1).apply {
@@ -65,7 +67,7 @@ class VaultFileProvider : ContentProvider() {
     override fun openFile(uri: Uri, mode: String): ParcelFileDescriptor {
         if (mode != "r") throw SecurityException("read-only")
         val (id, path) = target(uri)
-        val handle = sessions.session(id)?.handle ?: throw FileNotFoundException("vault locked")
+        val handle = sessions.sessionByToken(id)?.handle ?: throw FileNotFoundException("vault locked")
         val size = try {
             handle.stat(path).size
         } catch (e: CofferException) {
@@ -95,10 +97,16 @@ class VaultFileProvider : ContentProvider() {
     companion object {
         const val AUTHORITY = "app.coffer.files"
 
-        fun uriFor(vaultId: String, path: String): Uri = Uri.Builder()
+        fun sessionRoot(token: String): Uri = Uri.Builder()
             .scheme("content")
             .authority(AUTHORITY)
-            .appendPath(vaultId)
+            .appendPath(token)
+            .build()
+
+        fun uriFor(token: String, path: String): Uri = Uri.Builder()
+            .scheme("content")
+            .authority(AUTHORITY)
+            .appendPath(token)
             .apply { path.split('/').filter { it.isNotEmpty() }.forEach { appendPath(it) } }
             .build()
     }

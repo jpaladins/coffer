@@ -17,8 +17,16 @@ Ambiente: emulatore Android 17 (API 37) x86_64, 4 core. Build di debug con `--ez
 | 11 | Build normale: FLAG_SECURE | Screenshot interamente nero (0% pixel non scuri) | `13-flag-secure.png` |
 | 12 | APK release (R8, 5,8 MB) | Sblocco ed elenco OK, 0 crash, `dumpsys package`: nessun permesso | n/d (FLAG_SECURE) |
 
-## Problemi aperti emersi
-- **Accessibilità e password:** il dump di `uiautomator` mostra in chiaro il testo del campo password. Va verificato se i servizi di accessibilità ricevono il testo non mascherato e, se sì, va mitigato.
-- **Accessibilità del FAB:** il pulsante flottante "Add container" non compare nel dump di accessibilità. Va verificato con TalkBack.
-- Il browser non indica se si è aperto il volume esterno o quello nascosto (informazione disponibile in `VolumeInfo.hidden`).
-- Non testato: "Apri con…" verso un'app esterna (sull'emulatore non c'è un'app per i file del corpus), esportazione via SAF sul dispositivo (la logica è coperta dai test unitari), telefono ARM reale.
+## Dopo la revisione finale (test strumentati, `ProviderAndLockTest`, 4/4 sull'emulatore)
+- "Apri con" (provider con proxy fd): byte esatti, anche con nomi Unicode; metadati DISPLAY_NAME/SIZE corretti.
+- Blocco durante una lettura: **nessun crash**. Le letture di zone non ancora lette falliscono e il core restituisce `Closed`.
+  - Limite noto: le pagine già lette possono restare nella cache FUSE del kernel per il fd ancora aperto. Si tratta di dati che l'app destinataria ha già ricevuto.
+- Un URI di condivisione di una sessione precedente non funziona più dopo un nuovo sblocco (token per sessione, permessi revocati al blocco).
+- Esportazione: file identico byte per byte.
+- **Accessibilità e password: risolto.** Il dump ora mostra solo pallini.
+
+## Problemi ancora aperti
+- Il pulsante flottante "Add container" non compare nel dump di accessibilità: da verificare con TalkBack.
+- Il browser non indica se si è aperto il volume esterno o quello nascosto.
+- Con il blocco automatico "Subito", il selettore di sistema dell'esportazione manda l'app in background e il volume si blocca (vedi i minori rimandati).
+- Da provare su un telefono ARM reale.
