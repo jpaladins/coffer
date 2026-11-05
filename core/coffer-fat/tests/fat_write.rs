@@ -210,7 +210,11 @@ fn dot_entries_have_no_long_name() {
         let is_dot = e[11] == 0x10 && (&e[..11] == b".          " || &e[..11] == b"..         ");
         if is_dot {
             dots += 1;
-            assert_ne!(img[i - 32 + 11], 0x0F, "LFN entry before a dot entry at {i}");
+            assert_ne!(
+                img[i - 32 + 11],
+                0x0F,
+                "LFN entry before a dot entry at {i}"
+            );
         }
     }
     assert_eq!(dots, 4);
@@ -229,9 +233,17 @@ fn dotdot_points_to_parent_after_create_and_move() {
     fs.rename("/aaa/xxx", "/bbb/xxx").unwrap();
     let mut img = vec![0u8; dev.len() as usize];
     dev.read_at(0, &mut img).unwrap();
-    let cluster = |e: &[u8]| u32::from(u16::from_le_bytes([e[26], e[27]])) | u32::from(u16::from_le_bytes([e[20], e[21]])) << 16;
+    let cluster = |e: &[u8]| {
+        u32::from(u16::from_le_bytes([e[26], e[27]]))
+            | u32::from(u16::from_le_bytes([e[20], e[21]])) << 16
+    };
     let entries: Vec<&[u8]> = img.chunks(32).collect();
-    let find = |name: &[u8; 11]| entries.iter().position(|e| &e[..11] == name && e[11] & 0x10 != 0).unwrap();
+    let find = |name: &[u8; 11]| {
+        entries
+            .iter()
+            .position(|e| &e[..11] == name && e[11] & 0x10 != 0)
+            .unwrap()
+    };
     let bbb = cluster(entries[find(b"BBB        ")]);
     // Each directory's "." is followed by its "..": check all of them.
     let mut checked = 0;

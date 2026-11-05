@@ -19,7 +19,8 @@ fn main() -> Result<(), String> {
         "movedir" => {
             fs.mkdir("/coffer/sub").map_err(e)?;
             fs.mkdir("/coffer/sub/deep").map_err(e)?;
-            fs.rename("/coffer/sub/deep", "/coffer/deep-moved").map_err(e)?;
+            fs.rename("/coffer/sub/deep", "/coffer/deep-moved")
+                .map_err(e)?;
         }
         "manyfiles" => {
             fs.mkdir("/coffer/many").map_err(e)?;
@@ -30,13 +31,15 @@ fn main() -> Result<(), String> {
             }
         }
         "longname" => {
-            fs.create_file(&format!("/coffer/{}.txt", "n".repeat(120))).map_err(e)?;
+            fs.create_file(&format!("/coffer/{}.txt", "n".repeat(120)))
+                .map_err(e)?;
             fs.create_file("/coffer/àèìòù €.txt").map_err(e)?;
         }
         "filemove" => {
             fs.mkdir("/coffer/sub").map_err(e)?;
             fs.create_file("/coffer/hello.txt").map_err(e)?;
-            fs.rename("/coffer/hello.txt", "/coffer/sub/saluti.txt").map_err(e)?;
+            fs.rename("/coffer/hello.txt", "/coffer/sub/saluti.txt")
+                .map_err(e)?;
         }
         other => return Err(format!("unknown scenario {other}")),
     }

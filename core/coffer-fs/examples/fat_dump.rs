@@ -11,7 +11,16 @@ fn le16(b: &[u8], o: usize) -> usize {
 }
 
 fn show(e: &[u8]) {
-    let name: String = e[..11].iter().map(|c| if c.is_ascii_graphic() || *c == b' ' { *c as char } else { '.' }).collect();
+    let name: String = e[..11]
+        .iter()
+        .map(|c| {
+            if c.is_ascii_graphic() || *c == b' ' {
+                *c as char
+            } else {
+                '.'
+            }
+        })
+        .collect();
     println!(
         "  {:02x} '{}' attr={:02x} ntres={:02x} ctime={:02x}{:02x}{:02x} cdate={:04x} adate={:04x} hi={:04x} mtime={:04x} mdate={:04x} clus={} size={}",
         e[0], name, e[11], e[12], e[13], e[14], e[15], le16(e, 16), le16(e, 18), le16(e, 20), le16(e, 22), le16(e, 24), le16(e, 26),
@@ -56,7 +65,8 @@ fn main() -> Result<(), String> {
     }
     println!("/coffer cluster {coffer_cluster}:");
     let mut d = vec![0u8; spc * bps];
-    v.read_at((data_off + (coffer_cluster - 2) * spc * bps) as u64, &mut d).map_err(e)?;
+    v.read_at((data_off + (coffer_cluster - 2) * spc * bps) as u64, &mut d)
+        .map_err(e)?;
     for ent in d.chunks(32).take(12) {
         if ent[0] == 0 {
             println!("  (end)");

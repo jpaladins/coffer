@@ -30,7 +30,10 @@ fn creds(pw: &str) -> Credentials {
 }
 
 fn sha_hex(b: &[u8]) -> String {
-    Sha256::digest(b).iter().map(|x| format!("{x:02x}")).collect()
+    Sha256::digest(b)
+        .iter()
+        .map(|x| format!("{x:02x}"))
+        .collect()
 }
 
 fn hidden_digest(dev: &Arc<dyn BlockDevice>, pw: &str) -> Result<String, String> {
@@ -93,20 +96,36 @@ fn mutate(fs: &dyn Filesystem) -> Result<(), coffer_vfs::CofferError> {
     fs.sync()
 }
 
-fn walk(fs: &dyn Filesystem, dir: &str, out: &mut Vec<String>) -> Result<(), coffer_vfs::CofferError> {
+fn walk(
+    fs: &dyn Filesystem,
+    dir: &str,
+    out: &mut Vec<String>,
+) -> Result<(), coffer_vfs::CofferError> {
     for e in fs.list(dir)? {
-        let p = if dir == "/" { format!("/{}", e.name) } else { format!("{dir}/{}", e.name) };
+        let p = if dir == "/" {
+            format!("/{}", e.name)
+        } else {
+            format!("{dir}/{}", e.name)
+        };
         if p.starts_with("/System Volume Information") {
             continue;
         }
         if e.is_dir {
-            out.push(format!("{{\"path\":{:?},\"dir\":true,\"size\":0,\"sha256\":\"\"}}", p));
+            out.push(format!(
+                "{{\"path\":{:?},\"dir\":true,\"size\":0,\"sha256\":\"\"}}",
+                p
+            ));
             walk(fs, &p, out)?;
         } else {
             let mut b = vec![0u8; e.size as usize];
             let n = fs.read(&p, 0, &mut b)?;
             b.truncate(n);
-            out.push(format!("{{\"path\":{:?},\"dir\":false,\"size\":{},\"sha256\":\"{}\"}}", p, n, sha_hex(&b)));
+            out.push(format!(
+                "{{\"path\":{:?},\"dir\":false,\"size\":{},\"sha256\":\"{}\"}}",
+                p,
+                n,
+                sha_hex(&b)
+            ));
         }
     }
     Ok(())
@@ -122,18 +141,24 @@ fn run(args: &[String]) -> Result<(), String> {
     };
     let mut vol = open_volume(dev.clone(), &creds(&args[2]), &CancelToken::new()).map_err(e)?;
     if let Some(pw) = hidden_pw {
-        vol.protect_hidden_volume(&creds(pw), &CancelToken::new()).map_err(e)?;
+        vol.protect_hidden_volume(&creds(pw), &CancelToken::new())
+            .map_err(e)?;
     }
     let vol = Arc::new(vol);
     {
         let fs = mount_rw(vol.clone()).map_err(e)?;
-        println!("{} before: {} KiB free", fs.kind().name(), fs.stats().map_err(e)?.free_bytes.unwrap_or(0) / 1024);
+        println!(
+            "{} before: {} KiB free",
+            fs.kind().name(),
+            fs.stats().map_err(e)?.free_bytes.unwrap_or(0) / 1024
+        );
         mutate(fs.as_ref()).map_err(e)?;
     }
     let fs = mount(vol).map_err(e)?;
     let mut entries = Vec::new();
     walk(fs.as_ref(), "/", &mut entries).map_err(e)?;
-    std::fs::write(&args[3], format!("[\n{}\n]\n", entries.join(",\n"))).map_err(|x| x.to_string())?;
+    std::fs::write(&args[3], format!("[\n{}\n]\n", entries.join(",\n")))
+        .map_err(|x| x.to_string())?;
     println!("{} entries written to {}", entries.len(), args[3]);
     if let (Some(pw), Some(b)) = (hidden_pw, before) {
         let after = hidden_digest(&dev, pw)?;

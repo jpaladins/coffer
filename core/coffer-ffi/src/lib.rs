@@ -180,6 +180,8 @@ pub struct FfiVolumeInfo {
     pub used_backup_header: bool,
     pub fs_kind: String,
     pub size: u64,
+    pub writable: bool,
+    pub hidden_protected: bool,
 }
 
 impl From<coffer_vfs::DirEntry> for FfiEntry {
@@ -242,6 +244,41 @@ impl FfiVault {
         Ok(buf)
     }
 
+    pub fn create_file(&self, path: String) -> Result<(), FfiError> {
+        Ok(self.fs()?.create_file(&path)?)
+    }
+
+    pub fn mkdir(&self, path: String) -> Result<(), FfiError> {
+        Ok(self.fs()?.mkdir(&path)?)
+    }
+
+    /// Writes at `offset`, growing the file as needed.
+    pub fn write(&self, path: String, offset: u64, data: Vec<u8>) -> Result<(), FfiError> {
+        if data.len() > MAX_READ as usize {
+            return Err(FfiError::InvalidPath {
+                path: format!("{path}: write of {} bytes exceeds {MAX_READ}", data.len()),
+            });
+        }
+        Ok(self.fs()?.write(&path, offset, &data)?)
+    }
+
+    pub fn set_len(&self, path: String, len: u64) -> Result<(), FfiError> {
+        Ok(self.fs()?.set_len(&path, len)?)
+    }
+
+    pub fn remove(&self, path: String) -> Result<(), FfiError> {
+        Ok(self.fs()?.remove(&path)?)
+    }
+
+    pub fn rename(&self, from: String, to: String) -> Result<(), FfiError> {
+        Ok(self.fs()?.rename(&from, &to)?)
+    }
+
+    /// Flushes and marks the volume clean (exFAT VolumeDirty).
+    pub fn sync(&self) -> Result<(), FfiError> {
+        Ok(self.fs()?.sync()?)
+    }
+
     pub fn stats(&self) -> Result<FfiStats, FfiError> {
         let fs = self.fs()?;
         let s = fs.stats()?;
@@ -256,7 +293,10 @@ impl FfiVault {
     /// on drop). Named `lock` because Kotlin reserves `close` (AutoCloseable).
     /// Idempotent.
     pub fn lock(&self) {
-        self.fs.lock().unwrap_or_else(|p| p.into_inner()).take();
+        if let Some(fs) = self.fs.lock().unwrap_or_else(|p| p.into_inner()).take() {
+            // Best effort: a clean unmount clears VolumeDirty.
+            let _ = fs.sync();
+        }
     }
 }
 
@@ -282,19 +322,43 @@ fn to_credentials(
 
 /// Opens a container from any block device and mounts its filesystem.
 /// Opens a container from any block device; `secret` (see [`take_secrets`])
-/// is wiped.
+/// is wiped. With `writable`, the filesystem is mounted read-write; with
+/// `hidden_secret`, the hidden volume inside the outer one is protected
+/// from writes (it is wiped too).
 pub fn open_device_secret(
     dev: Arc<dyn BlockDevice>,
     secret: &mut [u8],
     options: FfiOpenOptions,
+    writable: bool,
+    hidden_secret: Option<&mut [u8]>,
     cancel: Arc<FfiCancel>,
 ) -> Result<Arc<FfiVault>, FfiError> {
+    let hidden = match hidden_secret {
+        Some(h) => Some(take_secrets(h)?),
+        None => None,
+    };
     let secrets = take_secrets(secret)?;
+    let prf = options.prf.clone();
+    let max_kdf_memory = options.max_kdf_memory;
     let (creds, opts) = to_credentials(secrets, options)?;
     if cancel.token.is_cancelled() {
         return Err(FfiError::Cancelled);
     }
-    let vol = Arc::new(open_volume_with(dev, &creds, &cancel.token, opts)?);
+    let mut vol = open_volume_with(dev, &creds, &cancel.token, opts)?;
+    if let Some(h) = hidden {
+        let (hcreds, _) = to_credentials(
+            h,
+            FfiOpenOptions {
+                pim: 0,
+                prf,
+                max_kdf_memory,
+                try_backup_headers: true,
+            },
+        )?;
+        vol.protect_hidden_volume(&hcreds, &cancel.token)?;
+    }
+    let hidden_protected = vol.is_hidden_protected();
+    let vol = Arc::new(vol);
     let info_base = (
         vol.header.suite.name().to_string(),
         vol.header.prf.name().to_string(),
@@ -302,7 +366,11 @@ pub fn open_device_secret(
         vol.used_backup_header,
         vol.len(),
     );
-    let fs: Arc<dyn Filesystem> = Arc::from(coffer_fs::mount(vol)?);
+    let fs: Arc<dyn Filesystem> = Arc::from(if writable {
+        coffer_fs::mount_rw(vol)?
+    } else {
+        coffer_fs::mount(vol)?
+    });
     Ok(Arc::new(FfiVault {
         info: FfiVolumeInfo {
             cipher: info_base.0,
@@ -311,6 +379,8 @@ pub fn open_device_secret(
             used_backup_header: info_base.3,
             fs_kind: fs.kind().name().to_string(),
             size: info_base.4,
+            writable: fs.is_writable(),
+            hidden_protected,
         },
         fs: Mutex::new(Some(fs)),
     }))
@@ -324,27 +394,41 @@ pub fn open_device_secret(
 /// `Memory`) holding the secrets blob described in [`take_secrets`]; it is
 /// read in place and wiped, so no copy of the password is left behind by
 /// UniFFI's buffer handling. The caller must keep it alive for the call.
+///
+/// `hidden_ptr`/`hidden_len` (0/0 for none) carry the hidden volume's secrets
+/// in the same format, to protect it while writing to the outer volume.
 #[uniffi::export]
+#[allow(clippy::too_many_arguments)]
 pub fn open_fd_secret(
     fd: i32,
     writable: bool,
     secret_ptr: u64,
     secret_len: u64,
+    hidden_ptr: u64,
+    hidden_len: u64,
     options: FfiOpenOptions,
     cancel: Arc<FfiCancel>,
 ) -> Result<Arc<FfiVault>, FfiError> {
     let file = file_from_fd(fd)?;
-    if secret_ptr == 0 || secret_len > MAX_SECRETS {
+    let secret = caller_memory(secret_ptr, secret_len)?;
+    let hidden = if hidden_ptr == 0 {
+        None
+    } else {
+        Some(caller_memory(hidden_ptr, hidden_len)?)
+    };
+    let dev: Arc<dyn BlockDevice> = Arc::new(FileDevice::from_file(file, writable)?);
+    open_device_secret(dev, secret, options, writable, hidden, cancel)
+}
+
+fn caller_memory<'a>(ptr: u64, len: u64) -> Result<&'a mut [u8], FfiError> {
+    if ptr == 0 || len > MAX_SECRETS {
         return Err(FfiError::InvalidPath {
             path: "invalid secrets buffer".into(),
         });
     }
-    // SAFETY: the caller guarantees `secret_len` writable bytes at
-    // `secret_ptr` for the duration of this call (Kotlin JNA Memory).
-    let secret =
-        unsafe { std::slice::from_raw_parts_mut(secret_ptr as *mut u8, secret_len as usize) };
-    let dev: Arc<dyn BlockDevice> = Arc::new(FileDevice::from_file(file, writable)?);
-    open_device_secret(dev, secret, options, cancel)
+    // SAFETY: the caller guarantees `len` writable bytes at `ptr` for the
+    // duration of the call (Kotlin JNA Memory), not aliased elsewhere.
+    Ok(unsafe { std::slice::from_raw_parts_mut(ptr as *mut u8, len as usize) })
 }
 
 #[cfg(unix)]

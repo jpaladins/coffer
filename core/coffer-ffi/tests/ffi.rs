@@ -61,7 +61,14 @@ fn open(
     pw: &str,
     cancel: std::sync::Arc<FfiCancel>,
 ) -> Result<std::sync::Arc<coffer_ffi::FfiVault>, FfiError> {
-    open_device_secret(container(), &mut blob(pw.as_bytes(), &[]), opts(), cancel)
+    open_device_secret(
+        container(),
+        &mut blob(pw.as_bytes(), &[]),
+        opts(),
+        false,
+        None,
+        cancel,
+    )
 }
 
 #[test]
@@ -184,7 +191,9 @@ fn malformed_secret_blob_is_rejected_and_wiped() {
 #[test]
 fn open_with_secrets_roundtrip() {
     let mut b = blob(b"ffi-pass", &[]);
-    let v = coffer_ffi::open_device_secret(container(), &mut b, opts(), FfiCancel::new()).unwrap();
+    let v =
+        coffer_ffi::open_device_secret(container(), &mut b, opts(), false, None, FfiCancel::new())
+            .unwrap();
     assert_eq!(v.read("/hello.txt".into(), 0, 100).unwrap(), b"hello ffi");
 }
 
@@ -195,4 +204,69 @@ fn opts() -> coffer_ffi::FfiOpenOptions {
         max_kdf_memory: 1 << 30,
         try_backup_headers: false,
     }
+}
+
+// ---- P4: writing ----
+
+#[test]
+fn write_operations_roundtrip() {
+    let dev = container();
+    let v = open_device_secret(
+        dev.clone(),
+        &mut blob(b"ffi-pass", &[]),
+        opts(),
+        true,
+        None,
+        FfiCancel::new(),
+    )
+    .unwrap();
+    assert!(v.info().writable);
+    v.mkdir("/new".into()).unwrap();
+    v.create_file("/new/a.txt".into()).unwrap();
+    v.write("/new/a.txt".into(), 0, b"hello write".to_vec())
+        .unwrap();
+    v.rename("/new/a.txt".into(), "/new/b.txt".into()).unwrap();
+    v.create_file("/gone".into()).unwrap();
+    v.remove("/gone".into()).unwrap();
+    assert!(matches!(
+        v.create_file("/new/b.txt".into()),
+        Err(FfiError::AlreadyExists { .. })
+    ));
+    v.lock(); // syncs
+    let r = open_device_secret(
+        dev,
+        &mut blob(b"ffi-pass", &[]),
+        opts(),
+        false,
+        None,
+        FfiCancel::new(),
+    )
+    .unwrap();
+    assert_eq!(r.read("/new/b.txt".into(), 0, 100).unwrap(), b"hello write");
+    assert!(matches!(
+        r.stat("/gone".into()),
+        Err(FfiError::NotFound { .. })
+    ));
+}
+
+#[test]
+fn read_only_vault_rejects_writes() {
+    let v = open("ffi-pass", FfiCancel::new()).unwrap();
+    assert!(!v.info().writable);
+    assert!(matches!(v.mkdir("/x".into()), Err(FfiError::ReadOnly)));
+}
+
+#[test]
+fn hidden_protection_needs_a_hidden_volume() {
+    let mut hidden = blob(b"not-there", &[]);
+    let r = open_device_secret(
+        container(),
+        &mut blob(b"ffi-pass", &[]),
+        opts(),
+        true,
+        Some(&mut hidden),
+        FfiCancel::new(),
+    );
+    assert!(matches!(r, Err(FfiError::WrongCredentials)));
+    assert!(hidden.iter().all(|b| *b == 0), "hidden secrets wiped");
 }

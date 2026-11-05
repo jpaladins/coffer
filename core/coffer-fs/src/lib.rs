@@ -17,7 +17,10 @@ pub fn mount_rw(volume: Arc<dyn BlockDevice>) -> Result<Box<dyn Filesystem>, Cof
     mount_with(volume, true)
 }
 
-fn mount_with(volume: Arc<dyn BlockDevice>, writable: bool) -> Result<Box<dyn Filesystem>, CofferError> {
+fn mount_with(
+    volume: Arc<dyn BlockDevice>,
+    writable: bool,
+) -> Result<Box<dyn Filesystem>, CofferError> {
     let mut s0 = [0u8; 512];
     volume.read_at(0, &mut s0)?;
     match coffer_vfs::detect(&s0) {
