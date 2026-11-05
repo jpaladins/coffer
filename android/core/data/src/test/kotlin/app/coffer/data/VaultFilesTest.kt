@@ -158,6 +158,23 @@ class VaultFilesTest {
     }
 
     @Test
+    fun generated_names_stay_within_255_units() {
+        val h = MemHandle()
+        val long = sanitizeName("a".repeat(250) + ".jpeg")
+        h.createFile("/$long")
+        val second = h.uniqueName("/", long)
+        assertEquals(255, second.length)
+        assertTrue(second.endsWith(" (1).jpeg"))
+        // A cut never splits a surrogate pair.
+        val cut = sanitizeName("😀".repeat(200))
+        assertTrue(cut.length <= 255)
+        assertFalse(Character.isHighSurrogate(cut.last()))
+        // Nor leaves a trailing dot or space before the suffix.
+        val dotted = sanitizeName("b".repeat(253) + " .c.txt")
+        assertFalse(dotted.substringBeforeLast('.').endsWith(" ") || dotted.substringBeforeLast('.').endsWith("."))
+    }
+
+    @Test
     fun remove_recursive_empties_directories() {
         val h = MemHandle()
         h.mkdir("/a")

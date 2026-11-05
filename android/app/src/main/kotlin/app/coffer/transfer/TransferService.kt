@@ -54,6 +54,13 @@ class TransferService : Service() {
         return START_NOT_STICKY
     }
 
+    /** Android 15+: dataSync services get about 6 hours a day; stop cleanly. */
+    override fun onTimeout(startId: Int, fgsType: Int) {
+        transfers.cancel()
+        ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
+        stopSelf()
+    }
+
     override fun onDestroy() {
         scope.cancel()
         super.onDestroy()

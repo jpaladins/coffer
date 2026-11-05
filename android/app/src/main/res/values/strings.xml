@@ -87,4 +87,5 @@
     <string name="import_stop">Stop</string>
     <string name="transfer_channel">File transfers</string>
     <string name="transfer_notification">Importing files (%1$d of %2$d)</string>
+    <string name="browser_write_denied">Coffer cannot write to this file (its access was granted read-only). To write, remove it from the list and add it again.</string>
 </resources>

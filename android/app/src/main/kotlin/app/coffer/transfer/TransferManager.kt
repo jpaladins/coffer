@@ -24,6 +24,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 
 /** Documents picked by the user to import (SAF). */
 interface ImportSource {
@@ -70,12 +71,23 @@ class TransferManager(
 
     private val lock = Any()
     private var job: Job? = null
+    private var jobVault: String? = null
+
+    init {
+        // Locking a vault mid-import would leave a truncated file: stop the
+        // import first (it removes its partial file), then let the lock run.
+        sessions.addBeforeCloseListener { s ->
+            val running = synchronized(lock) { job?.takeIf { it.isActive && jobVault == s.ref.id } }
+            if (running != null) runBlocking { running.cancelAndJoin() }
+        }
+    }
 
     /** Returns false when another transfer is still running. */
     fun import(vaultId: String, dir: String, uris: List<String>): Boolean = synchronized(lock) {
         if (job?.isActive == true || uris.isEmpty()) return false
         guard.acquire()
         _progress.value = TransferProgress(vaultId, "", 1, uris.size)
+        jobVault = vaultId
         job = scope.launch(io) {
             try {
                 _results.tryEmit(run(vaultId, dir, uris))

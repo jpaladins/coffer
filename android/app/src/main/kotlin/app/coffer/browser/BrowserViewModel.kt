@@ -39,6 +39,8 @@ data class BrowserUiState(
     val exportProgress: Float? = null,
     val writable: Boolean = false,
     val hiddenProtected: Boolean = false,
+    /** Writing was requested but the file grant or provider is read-only. */
+    val writeDenied: Boolean = false,
     /** Import running in this vault. */
     val transfer: TransferProgress? = null,
     /** Path picked with "Move", waiting for "Move here". */
@@ -46,6 +48,8 @@ data class BrowserUiState(
     /** A write operation (mkdir, rename, delete, move) is running. */
     val busy: Boolean = false,
 ) {
+    /** Edits wait for a running import: both would change the same folders. */
+    val canEdit: Boolean get() = writable && !busy && transfer == null
     val breadcrumbs: List<String> get() = path.split('/').filter { it.isNotEmpty() }
     val canMoveHere: Boolean
         get() = moving != null && moving.substringBeforeLast('/').ifEmpty { "/" } != path &&
@@ -83,8 +87,11 @@ class BrowserViewModel @AssistedInject constructor(
     val effects = _effects.receiveAsFlow()
 
     init {
-        sessions.session(vaultId)?.handle?.info?.let { info ->
-            _uiState.update { it.copy(writable = info.writable, hiddenProtected = info.hiddenProtected) }
+        sessions.session(vaultId)?.let { s ->
+            val info = s.handle.info
+            _uiState.update {
+                it.copy(writable = info.writable, hiddenProtected = info.hiddenProtected, writeDenied = s.writeDenied)
+            }
         }
         load("/")
         viewModelScope.launch {
@@ -140,9 +147,8 @@ class BrowserViewModel @AssistedInject constructor(
 
     fun onLock() {
         viewModelScope.launch {
-            // An import must not be cut mid-write by the lock: stop it cleanly first.
-            if (_uiState.value.transfer != null) transfers.cancelAndJoin()
-            sessions.close(vaultId)
+            // SessionManager stops a running import first (TransferManager).
+            withContext(io) { sessions.close(vaultId) }
             _effects.send(BrowserEffect.Exit)
         }
     }
@@ -183,6 +189,7 @@ class BrowserViewModel @AssistedInject constructor(
 
     /** Runs a write in the current folder, then syncs and reloads it. */
     private fun mutate(op: (VaultHandle, String) -> Unit) {
+        if (_uiState.value.transfer != null) return
         val h = handle() ?: return run { _effects.trySend(BrowserEffect.Exit) }
         val dir = _uiState.value.path
         _uiState.update { it.copy(busy = true) }

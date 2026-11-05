@@ -18,12 +18,28 @@ private const val FORBIDDEN = "\"*/:<>?|\\"
 fun sanitizeName(raw: String): String {
     var s = raw.map { if (it < ' ' || it in FORBIDDEN) '_' else it }.joinToString("").trim().trimEnd('.', ' ')
     if (s.isEmpty() || s == "." || s == "..") s = "file"
-    if (s.length > 255) {
-        val dot = s.lastIndexOf('.').takeIf { it > 0 && s.length - it <= 16 } ?: s.length
-        val ext = s.substring(dot)
-        s = s.substring(0, 255 - ext.length) + ext
+    return fitName(s, "")
+}
+
+private const val MAX_NAME = 255
+
+/**
+ * Joins [base] + [suffix] + extension of [base] within 255 UTF-16 units:
+ * the stem is cut (never inside a surrogate pair) and the result never ends
+ * with a dot or space.
+ */
+private fun fitName(name: String, suffix: String): String {
+    val dot = name.lastIndexOf('.').takeIf { it > 0 && name.length - it <= 16 } ?: name.length
+    val ext = name.substring(dot)
+    var stem = name.substring(0, dot)
+    val room = MAX_NAME - ext.length - suffix.length
+    if (stem.length > room) {
+        var cut = room
+        if (cut > 0 && Character.isHighSurrogate(stem[cut - 1])) cut--
+        stem = stem.substring(0, cut).trimEnd('.', ' ')
+        if (stem.isEmpty()) stem = "file"
     }
-    return s
+    return "$stem$suffix$ext"
 }
 
 /** True when [path] exists (lookup is case-insensitive on FAT/exFAT). */
@@ -37,12 +53,9 @@ fun VaultHandle.exists(path: String): Boolean = try {
 /** [name] if free in [dir], else "name (1).ext", "name (2).ext", ... */
 fun VaultHandle.uniqueName(dir: String, name: String): String {
     if (!exists(childPath(dir, name))) return name
-    val dot = name.lastIndexOf('.').takeIf { it > 0 } ?: name.length
-    val base = name.substring(0, dot)
-    val ext = name.substring(dot)
     var i = 1
     while (true) {
-        val candidate = "$base ($i)$ext"
+        val candidate = fitName(name, " ($i)")
         if (!exists(childPath(dir, candidate))) return candidate
         i++
     }

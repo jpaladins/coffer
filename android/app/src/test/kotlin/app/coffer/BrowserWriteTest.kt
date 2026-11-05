@@ -231,4 +231,33 @@ class BrowserWriteTest {
         guard.release() // extra release is harmless
         assertEquals(0, guard.held.value)
     }
+
+    /** Review I3: "Lock all" during an import stops it first: no truncated file stays. */
+    @Test
+    fun lock_all_during_import_leaves_no_partial_file() = kotlinx.coroutines.runBlocking {
+        val h = WritableHandle()
+        val io = Dispatchers.IO
+        val sm = SessionManager(FakeStore(ref), FakeNative(handle = { h }), FakeOpener(), io, { 1L shl 30 })
+        sm.unlock(ref, UnlockRequest("secret".toCharArray(), 0, emptyList(), null, writable = true), sm.newCancel())
+        val slow = object : app.coffer.transfer.ImportSource {
+            override fun displayName(uri: String) = "slow.bin"
+            override fun openInput(uri: String) = object : java.io.InputStream() {
+                var left = 50L shl 20
+                override fun read() = throw UnsupportedOperationException()
+                override fun read(b: ByteArray, off: Int, len: Int): Int {
+                    if (left == 0L) return -1
+                    Thread.sleep(2)
+                    val n = minOf(len, 64 * 1024, left.toInt())
+                    left -= n
+                    return n
+                }
+            }
+        }
+        val transfers = TransferManager(sm, slow, LockGuard(), io, kotlinx.coroutines.CoroutineScope(io))
+        assertTrue(transfers.import("v1", "/", listOf("content://d/slow.bin")))
+        kotlinx.coroutines.withTimeout(5_000) { transfers.progress.first { (it?.bytes ?: 0) > 0 } }
+        sm.closeAll()
+        assertTrue(h.locked)
+        assertTrue("partial file left: ${h.files.keys}", h.files.isEmpty())
+    }
 }

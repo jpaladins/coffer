@@ -46,6 +46,8 @@ data class VaultSession(
     val ref: VaultRef,
     val handle: VaultHandle,
     val token: String = UUID.randomUUID().toString(),
+    /** Writing was requested but the document could not be opened for it. */
+    val writeDenied: Boolean = false,
 )
 
 /** VeraCrypt processes only the first 1 MiB of each keyfile. */
@@ -75,6 +77,7 @@ class SessionManager(
     private var epoch = 0L
     private val inFlight = ConcurrentHashMap.newKeySet<CancelSignal>()
     private val closeListeners = CopyOnWriteArrayList<(VaultSession) -> Unit>()
+    private val beforeCloseListeners = CopyOnWriteArrayList<(VaultSession) -> Unit>()
 
     fun newCancel(): CancelSignal = native.newCancel()
 
@@ -82,6 +85,14 @@ class SessionManager(
 
     fun sessionByToken(token: String): VaultSession? =
         synchronized(lock) { sessions.values.firstOrNull { it.token == token } }
+
+    /**
+     * Called (on the closing thread) just before a session is locked, e.g. to
+     * stop an import cleanly instead of cutting it mid-file.
+     */
+    fun addBeforeCloseListener(listener: (VaultSession) -> Unit) {
+        beforeCloseListeners += listener
+    }
 
     /** Called after a session is locked (e.g. to revoke share grants). */
     fun addCloseListener(listener: (VaultSession) -> Unit) {
@@ -126,7 +137,7 @@ class SessionManager(
                         throw e
                     }
                 }
-                val session = VaultSession(ref, handle)
+                val session = VaultSession(ref, handle, writeDenied = req.writable && !writable)
                 val replaced = synchronized(lock) {
                     if (epoch != startEpoch) {
                         // closeAll() (auto-lock) ran while the KDF was busy.
@@ -152,6 +163,7 @@ class SessionManager(
     }
 
     fun close(id: String) {
+        session(id)?.let { s -> beforeCloseListeners.forEach { runCatching { it(s) } } }
         val s = synchronized(lock) {
             sessions.remove(id).also { _openIds.value = sessions.keys.toSet() }
         }
@@ -160,6 +172,9 @@ class SessionManager(
 
     /** Locks everything and aborts unlocks still running (auto-lock). */
     fun closeAll() {
+        synchronized(lock) { sessions.values.toList() }.forEach { s ->
+            beforeCloseListeners.forEach { runCatching { it(s) } }
+        }
         val all = synchronized(lock) {
             epoch++
             sessions.values.toList().also {

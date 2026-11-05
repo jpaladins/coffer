@@ -215,7 +215,7 @@ fun BrowserContent(state: BrowserUiState, snackbar: SnackbarHostState, actions: 
                                 DropdownMenu(expanded = overflow, onDismissRequest = { overflow = false }) {
                                     DropdownMenuItem(
                                         text = { Text(stringResource(R.string.browser_new_folder)) },
-                                        enabled = !state.busy,
+                                        enabled = state.canEdit,
                                         onClick = { overflow = false; dialog = Dialog.NewFolder },
                                     )
                                 }
@@ -253,7 +253,7 @@ fun BrowserContent(state: BrowserUiState, snackbar: SnackbarHostState, actions: 
                         style = MaterialTheme.typography.bodyMedium,
                     )
                     TextButton(onClick = actions::onCancelMove) { Text(stringResource(R.string.browser_cancel)) }
-                    TextButton(onClick = actions::onMoveHere, enabled = state.canMoveHere && !state.busy) {
+                    TextButton(onClick = actions::onMoveHere, enabled = state.canMoveHere && state.canEdit) {
                         Text(stringResource(R.string.browser_move_here))
                     }
                 }
@@ -279,7 +279,7 @@ fun BrowserContent(state: BrowserUiState, snackbar: SnackbarHostState, actions: 
                     items(state.entries, key = { it.name }) { e ->
                         EntryRow(
                             e,
-                            writable = state.writable && !state.busy && state.moving == null,
+                            writable = state.canEdit && state.moving == null,
                             actions = actions,
                             onRename = { dialog = Dialog.Rename(e) },
                             onDelete = { dialog = Dialog.Delete(e) },
@@ -320,6 +320,13 @@ private fun Badges(state: BrowserUiState) {
     Row(Modifier.padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         if (!state.writable) AssistChip(onClick = {}, label = { Text(stringResource(R.string.browser_read_only)) })
         if (state.hiddenProtected) AssistChip(onClick = {}, label = { Text(stringResource(R.string.browser_hidden_protected)) })
+    }
+    if (state.writeDenied) {
+        Text(
+            stringResource(R.string.browser_write_denied),
+            Modifier.padding(horizontal = 16.dp),
+            style = MaterialTheme.typography.bodySmall,
+        )
     }
 }
 
