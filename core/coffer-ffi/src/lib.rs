@@ -338,7 +338,6 @@ pub fn open_device_secret(
         None => None,
     };
     let secrets = take_secrets(secret)?;
-    let prf = options.prf.clone();
     let max_kdf_memory = options.max_kdf_memory;
     let (creds, opts) = to_credentials(secrets, options)?;
     if cancel.token.is_cancelled() {
@@ -346,16 +345,25 @@ pub fn open_device_secret(
     }
     let mut vol = open_volume_with(dev, &creds, &cancel.token, opts)?;
     if let Some(h) = hidden {
-        let (hcreds, _) = to_credentials(
+        let (mut hcreds, _) = to_credentials(
             h,
             FfiOpenOptions {
                 pim: 0,
-                prf,
+                prf: None,
                 max_kdf_memory,
                 try_backup_headers: true,
             },
         )?;
-        vol.protect_hidden_volume(&hcreds, &cancel.token)?;
+        // The hidden volume usually shares the outer KDF: try that first,
+        // then every KDF (it may differ from the outer one).
+        hcreds.prf_hint = Some(vol.header.prf);
+        match vol.protect_hidden_volume(&hcreds, &cancel.token) {
+            Err(CofferError::WrongCredentials) => {
+                hcreds.prf_hint = None;
+                vol.protect_hidden_volume(&hcreds, &cancel.token)?;
+            }
+            r => r?,
+        }
     }
     let hidden_protected = vol.is_hidden_protected();
     let vol = Arc::new(vol);
