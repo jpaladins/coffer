@@ -22,3 +22,5 @@ Coffer reimplementa il formato dei volumi VeraCrypt **senza usare il codice sorg
 | 2026-11-04 | https://veracrypt.io/en/Release%20Notes.html | Argon2id introdotto in 1.26.29 |
 | 2026-11-04 | https://veracrypt.io/en/Command%20Line%20Usage%20for%20Windows.html | Sintassi di `VeraCrypt Format.exe /create`, nomi di cifrari e hash per il corpus |
 | 2026-11-04 | Comportamento osservato di VeraCrypt Format 1.26.29 | `argon2id` non accettato (`argon2` sì); PIM < 485 richiede password ≥ 20 caratteri; exFAT con Argon2 richiede il driver aggiornato |
+| 2026-11-05 | https://learn.microsoft.com/en-us/windows/win32/fileio/exfat-specification | Layout del boot sector exFAT, BootChecksum, voci di directory (0x85/0xC0/0xC1), EntrySetChecksum, timestamp e offset UTC, catene FAT e NoFatChain |
+| 2026-11-05 | Microsoft "FAT32 File System Specification" (fatgen103) | Regola del numero di cluster per distinguere FAT12/16/32 (`coffer-vfs::detect`) |

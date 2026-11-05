@@ -1,0 +1,12 @@
+[package]
+name = "coffer-exfat"
+description = "Read-only exFAT for Coffer volumes (clean-room, Microsoft exFAT specification)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+coffer-crypto.workspace = true
+coffer-volume.workspace = true
+coffer-vfs.workspace = true

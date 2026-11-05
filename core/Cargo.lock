@@ -120,6 +120,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "coffer-exfat"
+version = "0.1.0"
+dependencies = [
+ "coffer-crypto",
+ "coffer-vfs",
+ "coffer-volume",
+]
+
+[[package]]
 name = "coffer-fat"
 version = "0.1.0"
 dependencies = [
