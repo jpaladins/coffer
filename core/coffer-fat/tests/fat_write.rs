@@ -193,3 +193,60 @@ fn modified_time_is_current() {
     let m = fs.stat("/t").unwrap().modified.unwrap();
     assert!((now - m).abs() < 5, "modified {m} vs now {now}");
 }
+
+/// Found by Windows chkdsk: "." and ".." must be the first two entries of a
+/// directory, with no long-name (LFN) entries before them.
+#[test]
+fn dot_entries_have_no_long_name() {
+    let dev = blank(16, fatfs::FatType::Fat16);
+    let fs = FatFs::open_rw(dev.clone()).unwrap();
+    fs.mkdir("/coffer").unwrap();
+    fs.mkdir("/coffer/sub").unwrap();
+    let mut img = vec![0u8; dev.len() as usize];
+    dev.read_at(0, &mut img).unwrap();
+    let mut dots = 0;
+    for i in (32..img.len()).step_by(32) {
+        let e = &img[i..i + 32];
+        let is_dot = e[11] == 0x10 && (&e[..11] == b".          " || &e[..11] == b"..         ");
+        if is_dot {
+            dots += 1;
+            assert_ne!(img[i - 32 + 11], 0x0F, "LFN entry before a dot entry at {i}");
+        }
+    }
+    assert_eq!(dots, 4);
+}
+
+/// Found by chkdsk ("errors in . and/or .."): ".." must point at the parent
+/// directory's first cluster, and be 0 when the parent is the root (also on
+/// FAT32), including after a directory is moved.
+#[test]
+fn dotdot_points_to_parent_after_create_and_move() {
+    let dev = blank(64, fatfs::FatType::Fat32);
+    let fs = FatFs::open_rw(dev.clone()).unwrap();
+    fs.mkdir("/aaa").unwrap();
+    fs.mkdir("/bbb").unwrap();
+    fs.mkdir("/aaa/xxx").unwrap();
+    fs.rename("/aaa/xxx", "/bbb/xxx").unwrap();
+    let mut img = vec![0u8; dev.len() as usize];
+    dev.read_at(0, &mut img).unwrap();
+    let cluster = |e: &[u8]| u32::from(u16::from_le_bytes([e[26], e[27]])) | u32::from(u16::from_le_bytes([e[20], e[21]])) << 16;
+    let entries: Vec<&[u8]> = img.chunks(32).collect();
+    let find = |name: &[u8; 11]| entries.iter().position(|e| &e[..11] == name && e[11] & 0x10 != 0).unwrap();
+    let bbb = cluster(entries[find(b"BBB        ")]);
+    // Each directory's "." is followed by its "..": check all of them.
+    let mut checked = 0;
+    for (i, e) in entries.iter().enumerate() {
+        if &e[..11] == b".          " && e[11] & 0x10 != 0 {
+            let dir = cluster(e);
+            let dotdot = cluster(entries[i + 1]);
+            if dir == cluster(entries[find(b"AAA        ")]) || dir == bbb {
+                assert_eq!(dotdot, 0, "child of root must have .. = 0");
+                checked += 1;
+            } else {
+                assert_eq!(dotdot, bbb, "moved dir must point at its new parent");
+                checked += 1;
+            }
+        }
+    }
+    assert_eq!(checked, 3);
+}

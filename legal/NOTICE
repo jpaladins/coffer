@@ -11,3 +11,7 @@ of IDRIX; Coffer is not affiliated with IDRIX.
 
 Third-party components (Rust crates) are listed with their licenses in
 THIRD_PARTY.md, generated from `cargo deny list` before each release.
+
+Third-party code included in source form: core/third_party/fatfs (fatfs 0.3.6,
+MIT License, Copyright (c) 2017 Rafał Harabień), with local patches listed in
+core/third_party/fatfs/COFFER-PATCHES.md.

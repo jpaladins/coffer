@@ -18,6 +18,10 @@ thiserror = "2"
 zeroize = { version = "1", features = ["zeroize_derive"] }
 rayon = "1"
 
+[patch.crates-io]
+# Patched copy, see third_party/fatfs/COFFER-PATCHES.md.
+fatfs = { path = "third_party/fatfs" }
+
 [profile.test]
 opt-level = 3
 

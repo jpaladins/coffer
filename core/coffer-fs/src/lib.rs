@@ -9,12 +9,25 @@ use std::sync::Arc;
 /// Detects the filesystem of `volume` (a decrypted volume) and mounts it
 /// read-only.
 pub fn mount(volume: Arc<dyn BlockDevice>) -> Result<Box<dyn Filesystem>, CofferError> {
+    mount_with(volume, false)
+}
+
+/// Mounts for reading and writing (the underlying device must be writable).
+pub fn mount_rw(volume: Arc<dyn BlockDevice>) -> Result<Box<dyn Filesystem>, CofferError> {
+    mount_with(volume, true)
+}
+
+fn mount_with(volume: Arc<dyn BlockDevice>, writable: bool) -> Result<Box<dyn Filesystem>, CofferError> {
     let mut s0 = [0u8; 512];
     volume.read_at(0, &mut s0)?;
     match coffer_vfs::detect(&s0) {
+        FsKind::Fat12 | FsKind::Fat16 | FsKind::Fat32 if writable => {
+            Ok(Box::new(coffer_fat::FatFs::open_rw(volume)?))
+        }
         FsKind::Fat12 | FsKind::Fat16 | FsKind::Fat32 => {
             Ok(Box::new(coffer_fat::FatFs::open(volume)?))
         }
+        FsKind::ExFat if writable => Ok(Box::new(coffer_exfat::ExFatFs::open_rw(volume)?)),
         FsKind::ExFat => Ok(Box::new(coffer_exfat::ExFatFs::open(volume)?)),
         FsKind::Ntfs => Err(CofferError::Unsupported("NTFS".into())),
         FsKind::Unknown => Err(CofferError::Corrupted(
