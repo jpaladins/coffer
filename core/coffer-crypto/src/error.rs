@@ -25,6 +25,16 @@ pub enum CofferError {
     IsADirectory(String),
     #[error("invalid path: {0}")]
     InvalidPath(String),
+    #[error("write blocked: it would overwrite the protected hidden volume")]
+    HiddenVolumeProtected,
+    #[error("not enough free space in the volume")]
+    NoSpace,
+    #[error("already exists: {0}")]
+    AlreadyExists(String),
+    #[error("directory not empty: {0}")]
+    NotEmpty(String),
+    #[error("the volume is open read-only")]
+    ReadOnly,
 }
 
 impl From<std::io::Error> for CofferError {

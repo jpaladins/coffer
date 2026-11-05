@@ -20,6 +20,9 @@ pub struct OpenedVolume {
     cascade: XtsCascade,
     data_start: u64,
     len: u64,
+    /// Hidden-volume area `[start, end)` in this volume's coordinates that
+    /// writes must not touch (hidden volume protection).
+    protected: Option<(u64, u64)>,
 }
 
 /// Bytes processed per I/O round (bounds memory for large reads/writes).
@@ -44,7 +47,53 @@ impl OpenedVolume {
             cascade,
             data_start,
             len,
+            protected: None,
         })
+    }
+
+    /// Protects the hidden volume inside this (outer) volume: from now on,
+    /// writes that would touch its area fail with `HiddenVolumeProtected`.
+    pub fn protect_hidden_volume(
+        &mut self,
+        hidden_creds: &coffer_crypto::Credentials,
+        cancel: &coffer_crypto::CancelToken,
+    ) -> Result<(), CofferError> {
+        use crate::layout::{backup_hidden_header, HIDDEN_HEADER};
+        if self.kind != VolumeKind::Standard {
+            return Err(CofferError::Unsupported(
+                "hidden volume protection applies to the outer volume".into(),
+            ));
+        }
+        let mut last = CofferError::WrongCredentials;
+        for off in [HIDDEN_HEADER, backup_hidden_header(self.dev.len())] {
+            let mut raw = [0u8; coffer_crypto::HEADER_LEN];
+            self.dev.read_at(off, &mut raw)?;
+            match coffer_crypto::decrypt_header(&raw, hidden_creds, cancel) {
+                Ok(h) => {
+                    let start = h
+                        .encrypted_area_start
+                        .checked_sub(self.data_start)
+                        .ok_or_else(|| {
+                            CofferError::Corrupted("hidden volume before outer data".into())
+                        })?;
+                    let end = start
+                        .checked_add(h.volume_size)
+                        .filter(|e| *e <= self.len)
+                        .ok_or_else(|| {
+                            CofferError::Corrupted("hidden volume outside outer volume".into())
+                        })?;
+                    self.protected = Some((start, end));
+                    return Ok(());
+                }
+                Err(CofferError::WrongCredentials) => last = CofferError::WrongCredentials,
+                Err(e) => return Err(e),
+            }
+        }
+        Err(last)
+    }
+
+    pub fn is_hidden_protected(&self) -> bool {
+        self.protected.is_some()
     }
 
     /// Reads whole sectors `[first, first + count)` and decrypts them.
@@ -89,6 +138,12 @@ impl BlockDevice for OpenedVolume {
 
     fn write_at(&self, mut off: u64, mut buf: &[u8]) -> Result<(), CofferError> {
         check_range(off, buf.len(), self.len)?;
+        if let Some((start, end)) = self.protected {
+            // Checked before any byte is written: the whole write is refused.
+            if off < end && off + buf.len() as u64 > start {
+                return Err(CofferError::HiddenVolumeProtected);
+            }
+        }
         while !buf.is_empty() {
             let (first, sectors, take) = Self::window(off, buf.len());
             let mut tmp = Zeroizing::new(vec![0u8; (sectors * SECTOR) as usize]);

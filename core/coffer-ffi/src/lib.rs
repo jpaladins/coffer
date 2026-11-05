@@ -37,6 +37,16 @@ pub enum FfiError {
     Io { detail: String },
     #[error("vault is closed")]
     Closed,
+    #[error("write blocked to protect the hidden volume")]
+    HiddenVolumeProtected,
+    #[error("not enough free space")]
+    NoSpace,
+    #[error("already exists: {path}")]
+    AlreadyExists { path: String },
+    #[error("directory not empty: {path}")]
+    NotEmpty { path: String },
+    #[error("read-only")]
+    ReadOnly,
 }
 
 impl From<CofferError> for FfiError {
@@ -54,6 +64,11 @@ impl From<CofferError> for FfiError {
             CofferError::IsADirectory(path) => FfiError::IsADirectory { path },
             CofferError::InvalidPath(path) => FfiError::InvalidPath { path },
             CofferError::Io(detail) => FfiError::Io { detail },
+            CofferError::HiddenVolumeProtected => FfiError::HiddenVolumeProtected,
+            CofferError::NoSpace => FfiError::NoSpace,
+            CofferError::AlreadyExists(path) => FfiError::AlreadyExists { path },
+            CofferError::NotEmpty(path) => FfiError::NotEmpty { path },
+            CofferError::ReadOnly => FfiError::ReadOnly,
         }
     }
 }

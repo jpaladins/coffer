@@ -217,3 +217,56 @@ fn hidden_and_backup_still_tried_when_argon2_skipped_for_memory() {
     let v = open_volume(dev(img), &c, &CancelToken::new()).unwrap();
     assert!(v.used_backup_header);
 }
+
+// ---- P4: hidden volume protection ----
+
+#[test]
+fn protection_blocks_writes_into_hidden_area_only() {
+    let d = dev(build(true));
+    let mut outer = open_volume(d.clone(), &creds("outer"), &CancelToken::new()).unwrap();
+    outer
+        .protect_hidden_volume(&creds("hidden"), &CancelToken::new())
+        .unwrap();
+    let hidden_start = LEN - DATA_START - HIDDEN_SIZE - DATA_START; // in outer coordinates
+    outer.write_at(0, &[1u8; 1024]).unwrap();
+    outer.write_at(hidden_start - 512, &[2u8; 512]).unwrap();
+    let r = outer.write_at(hidden_start - 1, &[3u8; 2]);
+    assert!(
+        matches!(r, Err(CofferError::HiddenVolumeProtected)),
+        "{r:?}"
+    );
+    assert!(matches!(
+        outer.write_at(hidden_start + 100, &[4u8; 10]),
+        Err(CofferError::HiddenVolumeProtected)
+    ));
+    // The rejected write must not have touched the byte before the area either.
+    let mut b = [0u8; 1];
+    outer.read_at(hidden_start - 1, &mut b).unwrap();
+    assert_eq!(b[0], 2);
+    let hidden = open_volume(d, &creds("hidden"), &CancelToken::new()).unwrap();
+    let mut buf = vec![0u8; HIDDEN_SIZE as usize];
+    hidden.read_at(0, &mut buf).unwrap();
+    assert!(
+        buf.iter()
+            .enumerate()
+            .all(|(i, x)| *x == pattern(2, i as u64)),
+        "hidden data changed"
+    );
+}
+
+#[test]
+fn protection_with_wrong_hidden_password_fails() {
+    let mut outer = open_volume(dev(build(true)), &creds("outer"), &CancelToken::new()).unwrap();
+    assert!(matches!(
+        outer.protect_hidden_volume(&creds("nope"), &CancelToken::new()),
+        Err(CofferError::WrongCredentials)
+    ));
+}
+
+#[test]
+fn protection_needs_the_outer_volume() {
+    let mut hidden = open_volume(dev(build(true)), &creds("hidden"), &CancelToken::new()).unwrap();
+    assert!(hidden
+        .protect_hidden_volume(&creds("hidden"), &CancelToken::new())
+        .is_err());
+}
