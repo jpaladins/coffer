@@ -181,9 +181,10 @@ impl FfiVault {
         })
     }
 
-    /// Drops the filesystem and the volume (keys are zeroized on drop).
+    /// Locks the vault: drops the filesystem and the volume (keys are zeroized
+    /// on drop). Named `lock` because Kotlin reserves `close` (AutoCloseable).
     /// Idempotent.
-    pub fn close(&self) {
+    pub fn lock(&self) {
         self.fs.lock().unwrap_or_else(|p| p.into_inner()).take();
     }
 }

@@ -7,3 +7,8 @@ build/
 local.properties
 .idea/
 *.iml
+android/local.properties
+android/**/build/
+android/.kotlin/
+android/core/native/src/main/jniLibs/
+android/core/native/src/main/kotlin/app/coffer/ffi/

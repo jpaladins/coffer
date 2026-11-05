@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- "Volume nel volume": nested hexagons inside the 66dp safe zone. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path android:fillColor="#E8B04A" android:pathData="M54,24 L80,39 L80,69 L54,84 L28,69 L28,39 Z" />
+    <path android:fillColor="#F5D38A" android:pathData="M54,24 L80,39 L54,54 L28,39 Z" />
+    <path android:fillColor="#0B3D2E" android:pathData="M54,39 L67,46.5 L67,61.5 L54,69 L41,61.5 L41,46.5 Z" />
+    <path android:fillColor="#E8B04A" android:pathData="M54,46 L61,50 L61,58 L54,62 L47,58 L47,50 Z" />
+</vector>

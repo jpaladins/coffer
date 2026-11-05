@@ -137,9 +137,9 @@ fn errors_are_mapped() {
 #[test]
 fn closed_vault_errors() {
     let v = open_device(container(), creds("ffi-pass"), FfiCancel::new()).unwrap();
-    v.close();
+    v.lock();
     assert!(matches!(v.list("/".into()), Err(FfiError::Closed)));
-    v.close(); // idempotent
+    v.lock(); // idempotent
 }
 
 #[test]

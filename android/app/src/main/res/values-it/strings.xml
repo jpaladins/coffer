@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="tagline">I tuoi volumi VeraCrypt®, al sicuro in tasca</string>
+    <string name="native_ok">Motore di cifratura pronto</string>
+    <string name="native_failed">Impossibile caricare il motore di cifratura</string>
+
+    <string name="vaults_title">I miei Coffer</string>
+    <string name="vaults_empty_title">Nessun container</string>
+    <string name="vaults_empty_body">Aggiungi un file container VeraCrypt per aprirlo su questo telefono. Coffer non lo copia mai e non va mai online.</string>
+    <string name="vaults_add">Aggiungi container</string>
+    <string name="vaults_remove">Rimuovi dall\'elenco</string>
+    <string name="vaults_remove_hint">Il file non viene cancellato.</string>
+    <string name="vaults_open_badge">Aperto</string>
+    <string name="vaults_lock_all">Blocca tutto</string>
+
+    <string name="unlock_title">Sblocca %1$s</string>
+    <string name="unlock_password">Password</string>
+    <string name="unlock_show_password">Mostra password</string>
+    <string name="unlock_hide_password">Nascondi password</string>
+    <string name="unlock_pim">PIM (facoltativo)</string>
+    <string name="unlock_pim_help">Solo se hai impostato un PIM (Personal Iterations Multiplier) quando hai creato il volume.</string>
+    <string name="unlock_keyfiles">Keyfile</string>
+    <string name="unlock_add_keyfile">Aggiungi keyfile</string>
+    <string name="unlock_kdf">Derivazione della chiave</string>
+    <string name="unlock_kdf_auto">Rileva automaticamente (più lento)</string>
+    <string name="unlock_button">Sblocca</string>
+    <string name="unlock_cancel">Annulla</string>
+    <string name="unlock_working">Verifica della password… può richiedere qualche secondo.</string>
+    <string name="unlock_try_backup">Prova gli header di backup</string>
+
+    <string name="error_wrong_credentials">Password, PIM o keyfile non corretti. Controlla e riprova.</string>
+    <string name="error_out_of_memory">Per sbloccare questo volume servono %1$d MB di memoria (Argon2id). Chiudi altre app e riprova.</string>
+    <string name="error_corrupted">Il container sembra danneggiato: %1$s</string>
+    <string name="error_unsupported">Non ancora supportato: %1$s</string>
+    <string name="error_permission_lost">Coffer non riesce più ad accedere a questo file. Forse è stato spostato o cancellato. Rimuovilo e aggiungilo di nuovo.</string>
+    <string name="error_generic">Qualcosa è andato storto: %1$s</string>
+    <string name="error_closed">Questo container è stato bloccato.</string>
+
+    <string name="browser_empty">Questa cartella è vuota</string>
+    <string name="browser_export">Esporta…</string>
+    <string name="browser_open_with">Apri con…</string>
+    <string name="browser_lock">Blocca</string>
+    <string name="browser_items">%1$d elementi</string>
+    <string name="export_done">%1$s esportato</string>
+    <string name="export_failed">Esportazione non riuscita: %1$s</string>
+
+    <string name="viewer_too_large">Il file è troppo grande per l\'anteprima. Usa Esporta o Apri con.</string>
+    <string name="viewer_truncated">Viene mostrato solo il primo MB.</string>
+    <string name="viewer_unsupported">Nessuna anteprima per questo tipo di file.</string>
+
+    <string name="settings_autolock">Blocca quando l\'app è in background</string>
+    <string name="autolock_immediately">Subito</string>
+    <string name="autolock_30s">Dopo 30 secondi</string>
+    <string name="autolock_2m">Dopo 2 minuti</string>
+    <string name="autolock_5m">Dopo 5 minuti</string>
+    <string name="about_trademark">Coffer è un progetto indipendente e non è affiliato a IDRIX. VeraCrypt® è un marchio di IDRIX.</string>
+</resources>
