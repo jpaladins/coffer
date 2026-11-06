@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- JPaladins brand: signal lime on near-black. -->
+    <color name="jpaladins_lime">#FFC8F03C</color>
+    <color name="jpaladins_chip">#FF0E0E0E</color>
+</resources>

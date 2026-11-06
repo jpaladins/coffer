@@ -150,5 +150,6 @@
     <string name="about_license">Software libero con licenza GNU General Public License v3.0 o successiva. Il codice sorgente è pubblico: chiunque può verificare cosa fa Coffer.</string>
     <string name="about_privacy">Coffer non ha il permesso di accesso a internet: non raccoglie e non invia nulla. Password e chiavi restano in memoria solo finché un container è aperto.</string>
     <string name="about_licenses">Licenze open source</string>
+    <string name="about_developed_by">Sviluppato da</string>
     <string name="create_size_max">Spazio libero insufficiente: disponibili %1$s.</string>
 </resources>

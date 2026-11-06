@@ -1,10 +1,21 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package app.coffer.about
 
+import androidx.annotation.DrawableRes
+import androidx.annotation.StringRes
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.material3.FilledIconButton
+import androidx.compose.material3.IconButtonDefaults
+import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.res.colorResource
+import androidx.compose.ui.res.painterResource
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -64,9 +75,49 @@ fun AboutScreen(onBack: () -> Unit) {
             Text(stringResource(R.string.about_privacy), style = MaterialTheme.typography.bodyMedium)
             Text(stringResource(R.string.about_trademark), style = MaterialTheme.typography.bodySmall)
             HorizontalDivider()
+            DeveloperCredit()
+            HorizontalDivider()
             TextButton(onClick = { showLicenses = !showLicenses }) { Text(stringResource(R.string.about_licenses)) }
             if (showLicenses) {
                 Text(licenses, fontFamily = FontFamily.Monospace, style = MaterialTheme.typography.bodySmall)
+            }
+        }
+    }
+}
+
+private class SocialLink(@DrawableRes val icon: Int, @StringRes val label: Int, val url: String)
+
+private val socialLinks = listOf(
+    SocialLink(R.drawable.ic_social_github, R.string.about_social_github, "https://github.com/jpaladins"),
+    SocialLink(R.drawable.ic_social_instagram, R.string.about_social_instagram, "https://www.instagram.com/jpaladins"),
+    SocialLink(R.drawable.ic_social_threads, R.string.about_social_threads, "https://www.threads.com/@jpaladins"),
+)
+
+/** "Developed by" with the JPaladins logo and social channels; links open in the user's browser. */
+@Composable
+private fun DeveloperCredit() {
+    val uriHandler = LocalUriHandler.current
+    Text(stringResource(R.string.about_developed_by), style = MaterialTheme.typography.labelLarge)
+    Image(
+        painter = painterResource(R.drawable.jpaladins_logo),
+        contentDescription = stringResource(R.string.about_developer),
+        modifier = Modifier.height(40.dp),
+    )
+    Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+        socialLinks.forEach { link ->
+            FilledIconButton(
+                // No browser installed: nothing to open, stay on the screen.
+                onClick = { runCatching { uriHandler.openUri(link.url) } },
+                colors = IconButtonDefaults.filledIconButtonColors(
+                    containerColor = colorResource(R.color.jpaladins_chip),
+                    contentColor = colorResource(R.color.jpaladins_lime),
+                ),
+            ) {
+                Icon(
+                    painterResource(link.icon),
+                    contentDescription = stringResource(link.label),
+                    modifier = Modifier.size(22.dp),
+                )
             }
         }
     }
