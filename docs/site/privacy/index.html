@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Coffer – Informativa sulla privacy / Privacy policy</title>
+<style>
+  :root { --green: #0B3D2E; --gold: #E8B04A; --text: #1d1d1b; --muted: #555; --bg: #fbfaf6; }
+  @media (prefers-color-scheme: dark) { :root { --text: #ecebe6; --muted: #b8b6ae; --bg: #121512; --green: #7fcfae; } }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 17px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  main { max-width: 720px; margin: 0 auto; padding: 32px 16px 64px; }
+  h1 { color: var(--green); font-size: 1.7em; margin-bottom: 0; }
+  h2 { color: var(--green); border-top: 2px solid var(--gold); padding-top: 18px; margin-top: 40px; }
+  .updated { color: var(--muted); margin-top: 4px; }
+  nav a { color: var(--green); margin-right: 16px; }
+  li { margin-bottom: 8px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Coffer</h1>
+  <p class="updated">Informativa sulla privacy · Privacy policy — ultimo aggiornamento / last updated: 2026-11-06</p>
+  <nav><a href="#it">Italiano</a><a href="#en">English</a></nav>
+
+  <h2 id="it">Italiano</h2>
+  <p>Coffer è un'app per aprire, modificare e creare container cifrati compatibili con VeraCrypt® sul tuo telefono.</p>
+  <ul>
+    <li><strong>Nessuna raccolta di dati.</strong> Coffer non raccoglie, non conserva su server e non condivide alcun dato personale. Non contiene pubblicità, analisi statistiche, tracciamento o SDK di terze parti.</li>
+    <li><strong>Nessun accesso a internet.</strong> L'app non richiede il permesso di accesso alla rete: non può inviare dati da nessuna parte.</li>
+    <li><strong>I tuoi file restano dove li hai messi.</strong> Coffer accede solo ai file che scegli tu tramite il selettore di sistema. Dell'elenco dei container salva solo il riferimento al file e un'etichetta, sul telefono.</li>
+    <li><strong>Password e chiavi.</strong> Le password non vengono mai salvate, tranne se attivi "Ricorda con l'impronta": in quel caso la password è conservata sul telefono, cifrata con una chiave dell'Android Keystore utilizzabile solo dopo la verifica dell'impronta. Il PIN di blocco dell'app è conservato solo come hash (PBKDF2), mai in chiaro.</li>
+    <li><strong>Nessun backup automatico.</strong> I dati dell'app sono esclusi dal backup di Android.</li>
+    <li><strong>Permessi.</strong> Coffer usa il permesso per i servizi in primo piano (per non interrompere una copia lunga) e la biometria del telefono, se scegli di usare l'impronta.</li>
+  </ul>
+  <p>Coffer è un progetto indipendente e non è affiliato a IDRIX. VeraCrypt® è un marchio di IDRIX.</p>
+
+  <h2 id="en">English</h2>
+  <p>Coffer is an app to open, edit and create VeraCrypt®-compatible encrypted containers on your phone.</p>
+  <ul>
+    <li><strong>No data collection.</strong> Coffer does not collect, store on servers or share any personal data. It contains no ads, analytics, tracking or third-party SDKs.</li>
+    <li><strong>No internet access.</strong> The app does not request the network permission: it cannot send data anywhere.</li>
+    <li><strong>Your files stay where you put them.</strong> Coffer only accesses files you pick with the system picker. For the container list it stores only a reference to the file and a label, on the phone.</li>
+    <li><strong>Passwords and keys.</strong> Passwords are never stored, unless you turn on "Remember with fingerprint": then the password is kept on the phone, encrypted with an Android Keystore key usable only after fingerprint verification. The app-lock PIN is stored only as a hash (PBKDF2), never in clear.</li>
+    <li><strong>No automatic backup.</strong> App data is excluded from Android backup.</li>
+    <li><strong>Permissions.</strong> Coffer uses the foreground-service permission (so a long copy is not interrupted) and the phone's biometrics, if you choose to use your fingerprint.</li>
+  </ul>
+  <p>Coffer is an independent project and is not affiliated with IDRIX. VeraCrypt® is a trademark of IDRIX.</p>
+</main>
+</body>
+</html>
