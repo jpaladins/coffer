@@ -12,7 +12,7 @@ Coffer implementa crittografia forte (AES, Serpent, Twofish, Camellia, Kuznyechi
 
 - Il codice crittografico open source pubblicamente disponibile è classificato 5D002 ma può essere esportato con l'eccezione **TSU** (EAR §740.13(e)) **dopo una notifica** via e-mail a BIS e alla NSA con l'URL del codice sorgente (EAR §742.15(b)).
 - La notifica serve solo quando il codice viene messo a disposizione da/verso gli Stati Uniti (es. pubblicazione su GitHub, server statunitensi). Va inviata **una volta**, al momento della pubblicazione del repository, e di nuovo solo se l'URL cambia.
-- **Nota (regola BIS del marzo 2021):** l'obbligo di notifica per il codice sorgente pubblicamente disponibile è stato eliminato, salvo per la crittografia "non standard". Coffer usa solo algoritmi standard pubblicati (AES, Serpent, Twofish, Camellia, Kuznyechik/RFC 7801, SHA-2, Whirlpool, BLAKE2s, Streebog/RFC 6986, Argon2/RFC 9106): la notifica è quindi probabilmente non obbligatoria, ma viene inviata comunque per prudenza. Verificare la norma vigente sul sito del BIS.
+- **Regola BIS del 29 marzo 2021 (86 FR 16482), verificata il 2026-11-06:** il codice sorgente crittografico pubblicamente disponibile esce dall'EAR appena pubblicato; la notifica e-mail (§742.15(b)(2)) resta solo per il codice che implementa "non-standard cryptography". Definizione (15 CFR 772.1): crittografia proprietaria o non pubblicata, con algoritmi o protocolli non adottati da un ente di standardizzazione riconosciuto (IEEE, IETF, ISO, ITU, ETSI…) **e** non altrimenti pubblicati. Tutti gli algoritmi di Coffer sono pubblicati e standardizzati (AES, Serpent, Twofish, Camellia, Kuznyechik/RFC 7801 e ISO/IEC 18033-3, SHA-2, Whirlpool/ISO/IEC 10118-3, BLAKE2s/RFC 7693, Streebog/RFC 6986, Argon2/RFC 9106, XTS/IEEE 1619): **la notifica non è obbligatoria**. Inviarla resta facoltativo.
 - Testo tipo e indirizzi: crypt@bis.doc.gov e enc@nsa.gov, oggetto "TSU Notification", con nome del prodotto, URL del repository e indicazione che il codice è pubblicamente disponibile.
 
 ## Google Play
@@ -35,4 +35,4 @@ Coffer implementa crittografia forte (AES, Serpent, Twofish, Camellia, Kuznyechi
 
 | Data | Azione | Note |
 |---|---|---|
-| — | Notifica TSU | Da inviare quando il repository diventa pubblico |
+| 2026-11-06 | Analisi | Repository pubblico; notifica TSU non obbligatoria (crittografia solo standard) |
