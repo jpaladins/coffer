@@ -1,4 +1,4 @@
-# Google Play Console: guida per Coffer 1.0.0
+# Google Play Console: guida per Coffer 0.0.1a (alpha)
 
 Risposte già preparate per i moduli della Play Console. Le regole di Google cambiano spesso: **verifica ogni punto sulla Console** prima di inviare. Dove una regola non è certa, è indicato.
 

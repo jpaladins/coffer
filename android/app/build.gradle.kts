@@ -18,8 +18,8 @@ android {
         applicationId = "com.coffer.app"
         minSdk = 26
         targetSdk = 36
-        versionCode = 2
-        versionName = "1.0.0"
+        versionCode = 3
+        versionName = "0.0.1a"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     // The release key lives outside the repository (scripts/new-keystore.ps1).

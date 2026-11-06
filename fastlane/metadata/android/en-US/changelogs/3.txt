@@ -1,0 +1,1 @@
+First alpha: open, write and create VeraCrypt containers; app lock. Early version: keep a backup of your containers.
