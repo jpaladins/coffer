@@ -5,6 +5,7 @@ import android.content.ContentResolver
 import android.content.Intent
 import android.net.Uri
 import android.provider.DocumentsContract
+import android.system.Os
 import android.provider.OpenableColumns
 import app.coffer.data.FdOpener
 import app.coffer.transfer.ImportSource
@@ -17,6 +18,8 @@ interface DocumentAccess {
     /** Keeps access to [uri] across restarts. */
     fun persist(uri: String)
     fun displayName(uri: String): String?
+    /** Free bytes on the storage holding [uri], or null when unknown. */
+    fun availableBytes(uri: String): Long? = null
 }
 
 class ContentResolverAccess(private val resolver: ContentResolver) : FdOpener, DocumentAccess, ImportSource {
@@ -61,6 +64,13 @@ class ContentResolverAccess(private val resolver: ContentResolver) : FdOpener, D
             resolver.takePersistableUriPermission(u, Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }
     }
+
+    override fun availableBytes(uri: String): Long? = runCatching {
+        resolver.openFileDescriptor(Uri.parse(uri), "r")?.use { pfd ->
+            val st = Os.fstatvfs(pfd.fileDescriptor)
+            st.f_bavail * st.f_frsize
+        }
+    }.getOrNull()
 
     override fun displayName(uri: String): String? =
         resolver.query(Uri.parse(uri), arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use {

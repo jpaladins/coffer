@@ -28,6 +28,27 @@ class LockGuard {
     fun release() {
         _held.value = count.updateAndGet { if (it > 0) it - 1 else 0 }
     }
+
+    private val pickers = AtomicInteger()
+
+    /**
+     * True while a system picker launched by Coffer is in front: leaving
+     * for it is not leaving the app, so the app lock does not arm. A
+     * transfer or creation ([acquire]) only postpones auto-lock: the app
+     * lock must still ask for the PIN when the user comes back.
+     */
+    val inPicker: Boolean get() = pickers.get() > 0
+
+    fun acquirePicker() {
+        pickers.incrementAndGet()
+        acquire()
+    }
+
+    fun releasePicker() {
+        var released = false
+        pickers.updateAndGet { if (it > 0) { released = true; it - 1 } else 0 }
+        if (released) release()
+    }
 }
 
 /**

@@ -20,7 +20,6 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import app.coffer.security.KeyInvalidatedException
 import app.coffer.security.NoRememberedPasswords
 import app.coffer.security.RememberedPasswords
 import javax.crypto.Cipher
@@ -96,7 +95,9 @@ class UnlockViewModel @AssistedInject constructor(
     /** Cipher for BiometricPrompt to recall the saved password; null if unusable. */
     suspend fun decryptCipher(): Cipher? = try {
         remembered.decrypter(vaultId)
-    } catch (_: KeyInvalidatedException) {
+    } catch (_: Exception) {
+        // KeyInvalidatedException (new fingerprints) or any Keystore failure:
+        // drop the saved password and fall back to typing it.
         runCatching { remembered.forget(vaultId) }
         _uiState.update { it.copy(hasRemembered = false, biometricInvalidated = true) }
         null

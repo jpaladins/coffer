@@ -56,23 +56,39 @@ internal fun hashPin(pin: CharArray, salt: ByteArray): ByteArray {
 class AppLock(private val store: AppLockStore, private val clock: () -> Long) {
     private val _isLocked = MutableStateFlow(false)
     val isLocked: StateFlow<Boolean> = _isLocked.asStateFlow()
+    private val _ready = MutableStateFlow(false)
+    /** False until the lock settings are loaded: draw nothing before that. */
+    val ready: StateFlow<Boolean> = _ready.asStateFlow()
+    private val _covered = MutableStateFlow(false)
+    /**
+     * True from the moment the app leaves the foreground until the timeout
+     * check on return: the content is hidden without waiting for a disk
+     * read, so it never flashes before the lock screen.
+     */
+    val covered: StateFlow<Boolean> = _covered.asStateFlow()
     private val mutex = Mutex()
     private var backgroundAt: Long? = null
+    @Volatile private var mode: AppLockMode = AppLockMode.OFF
 
     suspend fun mode(): AppLockMode = store.load().mode
 
     suspend fun onAppStart() {
-        _isLocked.value = store.load().mode != AppLockMode.OFF
+        mode = store.load().mode
+        _isLocked.value = mode != AppLockMode.OFF
+        _ready.value = true
     }
 
     fun onBackground() {
         backgroundAt = clock()
+        if (mode != AppLockMode.OFF) _covered.value = true
     }
 
     suspend fun onForeground(timeoutMs: Long) {
         val since = backgroundAt ?: return
         backgroundAt = null
-        if (store.load().mode != AppLockMode.OFF && clock() - since >= timeoutMs) _isLocked.value = true
+        mode = store.load().mode
+        if (mode != AppLockMode.OFF && clock() - since >= timeoutMs) _isLocked.value = true
+        _covered.value = false
     }
 
     /** Wipes [pin]. */
@@ -111,6 +127,7 @@ class AppLock(private val store: AppLockStore, private val clock: () -> Long) {
             if (pin.size < MIN_PIN || mode == AppLockMode.OFF) return false
             val salt = ByteArray(16).also(SecureRandom()::nextBytes)
             store.save(AppLockConfig(mode = mode, pin = PinRecord(salt, hashPin(pin, salt))))
+            this.mode = mode
             return true
         } finally {
             pin.fill('\u0000')
@@ -119,11 +136,16 @@ class AppLock(private val store: AppLockStore, private val clock: () -> Long) {
 
     suspend fun setMode(mode: AppLockMode) {
         val c = store.load()
-        if (c.pin != null && mode != AppLockMode.OFF) store.save(c.copy(mode = mode))
+        if (c.pin != null && mode != AppLockMode.OFF) {
+            store.save(c.copy(mode = mode))
+            this.mode = mode
+        }
     }
 
     suspend fun disable() {
         store.save(AppLockConfig())
+        mode = AppLockMode.OFF
         _isLocked.value = false
+        _covered.value = false
     }
 }

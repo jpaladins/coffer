@@ -64,13 +64,14 @@ class CreateViewModelTest {
 
     private class Env(val vm: CreateViewModel, val native: Native, val opener: Opener, val store: FakeStore, val guard: LockGuard)
 
-    private fun TestScope.env(fail: CofferException? = null): Env {
+    private fun TestScope.env(fail: CofferException? = null, available: Long? = null): Env {
         val store = FakeStore()
         val native = Native(fail)
         val opener = Opener()
         val sm = SessionManager(store, native, opener, StandardTestDispatcher(testScheduler), { 1L shl 30 })
         val guard = LockGuard()
-        return Env(CreateViewModel(sm, native, FakeDocuments(), guard), native, opener, store, guard)
+        val docs = FakeDocuments().also { it.available = available }
+        return Env(CreateViewModel(sm, native, docs, guard), native, opener, store, guard)
     }
 
     private fun CreateViewModel.ready() {
@@ -94,6 +95,20 @@ class CreateViewModelTest {
         assertEquals(Blocker.NO_PASSWORD, vm.blocker(CharArray(0), CharArray(0)))
         vm.onAddKeyfile("content://kf", "kf")
         assertNull(vm.blocker(CharArray(0), CharArray(0)))
+    }
+
+    /** Review P5 #1: a container larger than the free space must not be created. */
+    @Test
+    fun size_over_available_space_is_blocked() = runTest {
+        val e = env(available = 50L shl 20)
+        e.vm.ready() // 64 MB
+        assertEquals(Blocker.SIZE_TOO_LARGE, e.vm.blocker("pw".toCharArray(), "pw".toCharArray()))
+        e.vm.onSizeChange("40")
+        assertNull(e.vm.blocker("pw".toCharArray(), "pw".toCharArray()))
+        e.vm.onSizeChange("64")
+        e.vm.onCreate("pw".toCharArray(), "pw".toCharArray())
+        advanceUntilIdle()
+        assertNull(e.native.options)
     }
 
     @Test

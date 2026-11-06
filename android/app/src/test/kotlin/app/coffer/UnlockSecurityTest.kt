@@ -140,4 +140,19 @@ class UnlockSecurityTest {
         assertFalse(vm.uiState.value.hasRemembered)
         assertTrue(vm.uiState.value.biometricInvalidated)
     }
+
+    /** Review P5: any Keystore failure falls back to the password instead of crashing. */
+    @Test
+    fun keystore_error_falls_back_without_crash() = runTest {
+        val base = FakeRemembered()
+        base.saved["v1"] = "secret"
+        val r = object : RememberedPasswords by base {
+            override suspend fun decrypter(vaultId: String): Cipher? = throw IllegalStateException("keystore unavailable")
+        }
+        val vm = vm(remembered = r)
+        advanceUntilIdle()
+        assertNull(vm.decryptCipher())
+        assertTrue(vm.uiState.value.biometricInvalidated)
+        assertFalse(vm.uiState.value.hasRemembered)
+    }
 }

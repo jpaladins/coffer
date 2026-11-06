@@ -48,7 +48,7 @@ class CofferApp : Application() {
             override fun onStop(owner: LifecycleOwner) {
                 autoLock.onBackground()
                 // A system picker opened by Coffer is not "leaving the app".
-                if (guard.held.value == 0) appLock.onBackground()
+                if (!guard.inPicker) appLock.onBackground()
             }
 
             override fun onStart(owner: LifecycleOwner) {

@@ -252,3 +252,10 @@ fn device_size_must_match() {
     );
     assert!(matches!(r, Err(CofferError::InvalidSize(_))), "{r:?}");
 }
+
+/// Review P5 #1: a full disk while formatting is reported as NoSpace.
+#[test]
+fn storage_full_maps_to_no_space() {
+    let e: CofferError = std::io::Error::from(std::io::ErrorKind::StorageFull).into();
+    assert_eq!(e, CofferError::NoSpace);
+}

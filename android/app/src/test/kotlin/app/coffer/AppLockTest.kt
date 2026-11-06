@@ -110,4 +110,48 @@ class AppLockTest {
         assertFalse(lock.setPin("12".toCharArray(), AppLockMode.PIN))
         assertEquals(AppLockMode.OFF, store.config.mode)
     }
+
+    /** Review P5 #2: only a Coffer-launched picker exempts the app lock, not a transfer. */
+    @Test
+    fun transfer_hold_does_not_exempt_app_lock() {
+        val guard = app.coffer.security.LockGuard()
+        guard.acquire() // import or creation running
+        assertFalse(guard.inPicker)
+        assertEquals(1, guard.held.value)
+        guard.acquirePicker()
+        assertTrue(guard.inPicker)
+        assertEquals(2, guard.held.value)
+        guard.releasePicker()
+        guard.releasePicker() // extra release is harmless
+        assertFalse(guard.inPicker)
+        assertEquals(1, guard.held.value)
+    }
+
+    /** Review P5 #3: nothing is drawn before the lock state is known. */
+    @Test
+    fun content_hidden_until_config_loaded() = runTest {
+        withPin()
+        val fresh = AppLock(store) { now }
+        assertFalse(fresh.ready.value)
+        fresh.onAppStart()
+        assertTrue(fresh.ready.value)
+        assertTrue(fresh.isLocked.value)
+    }
+
+    /** Review P5 #3: leaving the app covers the content at once, before the async timeout check. */
+    @Test
+    fun content_covered_while_in_background() = runTest {
+        withPin()
+        lock.onAppStart()
+        lock.submitPin("123456".toCharArray())
+        lock.onBackground()
+        assertTrue(lock.covered.value) // synchronous, no DataStore read needed
+        now += 5_000
+        lock.onForeground(timeoutMs = 30_000)
+        assertFalse(lock.covered.value)
+        assertFalse(lock.isLocked.value)
+        lock.disable()
+        lock.onBackground()
+        assertFalse(lock.covered.value) // app lock off: nothing to hide
+    }
 }

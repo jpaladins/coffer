@@ -88,6 +88,8 @@ class FakeOpener : FdOpener {
 
 class FakeDocuments : DocumentAccess {
     val persisted = mutableListOf<String>()
+    var available: Long? = null
+    override fun availableBytes(uri: String) = available
     override fun persist(uri: String) { persisted += uri }
     override fun displayName(uri: String) = uri.substringAfterLast('/')
 }

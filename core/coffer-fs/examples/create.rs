@@ -7,7 +7,9 @@
 //! `big` also writes a 4.1 GiB file (exFAT only).
 use coffer_crypto::{CipherSuite, Prf};
 use coffer_fs::{format, mount, mount_rw, FsChoice};
-use coffer_volume::{create_volume, BlockDevice, CancelToken, CreateParams, Credentials, FileDevice};
+use coffer_volume::{
+    create_volume, BlockDevice, CancelToken, CreateParams, Credentials, FileDevice,
+};
 use std::process::ExitCode;
 use std::sync::Arc;
 
@@ -38,16 +40,33 @@ fn run(a: &[String]) -> Result<(), String> {
     let dev: Arc<dyn BlockDevice> = Arc::new(FileDevice::open(&a[1], true).map_err(e)?);
     let mut creds = Credentials::new(a[7].as_bytes());
     creds.pim = pim;
-    let params = CreateParams { size, suite, prf, quick };
+    let params = CreateParams {
+        size,
+        suite,
+        prf,
+        quick,
+    };
     let mut serial = [0u8; 4];
     os_rng(&mut serial).map_err(e)?;
     let vol = Arc::new(
-        create_volume(dev, &creds, &params, &mut os_rng, &|_, _| {}, &CancelToken::new()).map_err(e)?,
+        create_volume(
+            dev,
+            &creds,
+            &params,
+            &mut os_rng,
+            &|_, _| {},
+            &CancelToken::new(),
+        )
+        .map_err(e)?,
     );
     format(vol.clone(), fs_choice, "Coffer", u32::from_le_bytes(serial)).map_err(e)?;
     {
         let fs = mount_rw(vol.clone()).map_err(e)?;
-        println!("{} created, {} KiB free", fs.kind().name(), fs.stats().map_err(e)?.free_bytes.unwrap_or(0) / 1024);
+        println!(
+            "{} created, {} KiB free",
+            fs.kind().name(),
+            fs.stats().map_err(e)?.free_bytes.unwrap_or(0) / 1024
+        );
         mutate(fs.as_ref()).map_err(e)?;
         if big {
             let total: u64 = (4 << 30) + (100 << 20);

@@ -151,4 +151,5 @@
     <string name="about_license">Free software under the GNU General Public License v3.0 or later. The source code is public: anyone can check what Coffer does.</string>
     <string name="about_privacy">Coffer has no internet permission: it collects nothing and sends nothing. Passwords and keys stay in memory only while a container is open.</string>
     <string name="about_licenses">Open source licenses</string>
+    <string name="create_size_max">Not enough free space: %1$s available.</string>
 </resources>

@@ -252,6 +252,7 @@ private fun blockerText(b: Blocker, state: CreateUiState): String = when (b) {
     Blocker.NO_LOCATION -> stringResource(R.string.create_need_location)
     Blocker.SIZE_INVALID -> stringResource(R.string.create_need_size)
     Blocker.SIZE_TOO_SMALL -> stringResource(R.string.create_size_min, (state.minBytes shr 20).toInt(), state.fs)
+    Blocker.SIZE_TOO_LARGE -> stringResource(R.string.create_size_max, app.coffer.browser.humanSize(state.availableBytes ?: 0))
     Blocker.NO_PASSWORD -> stringResource(R.string.create_need_password)
     Blocker.PASSWORD_MISMATCH -> stringResource(R.string.create_password_mismatch)
 }

@@ -24,7 +24,7 @@ import kotlinx.coroutines.launch
 const val MIN_FAT_BYTES = 1L shl 20
 const val MIN_EXFAT_BYTES = 4L shl 20
 
-enum class Blocker { NO_LOCATION, SIZE_INVALID, SIZE_TOO_SMALL, NO_PASSWORD, PASSWORD_MISMATCH }
+enum class Blocker { NO_LOCATION, SIZE_INVALID, SIZE_TOO_SMALL, SIZE_TOO_LARGE, NO_PASSWORD, PASSWORD_MISMATCH }
 
 sealed interface CreatePhase {
     data object Idle : CreatePhase
@@ -39,6 +39,8 @@ data class KeyfileItem(val uri: String, val name: String)
 data class CreateUiState(
     val locationUri: String? = null,
     val locationName: String = "",
+    /** Free space where the container goes (the file is sparse until formatted). */
+    val availableBytes: Long? = null,
     val sizeText: String = "",
     val sizeGb: Boolean = false,
     val cipher: String = "AES",
@@ -82,7 +84,8 @@ class CreateViewModel @Inject constructor(
     fun onLocationPicked(uri: String) {
         runCatching { documents.persist(uri) }
         val name = runCatching { documents.displayName(uri) }.getOrNull() ?: uri.substringAfterLast('/')
-        _uiState.update { it.copy(locationUri = uri, locationName = name, phase = CreatePhase.Idle) }
+        val free = runCatching { documents.availableBytes(uri) }.getOrNull()
+        _uiState.update { it.copy(locationUri = uri, locationName = name, availableBytes = free, phase = CreatePhase.Idle) }
     }
 
     fun onSizeChange(text: String) {
@@ -122,6 +125,7 @@ class CreateViewModel @Inject constructor(
             s.locationUri == null -> Blocker.NO_LOCATION
             size == null -> Blocker.SIZE_INVALID
             size < s.minBytes -> Blocker.SIZE_TOO_SMALL
+            s.availableBytes != null && size > s.availableBytes -> Blocker.SIZE_TOO_LARGE
             password.isEmpty() && s.keyfiles.isEmpty() -> Blocker.NO_PASSWORD
             !password.contentEquals(confirm) -> Blocker.PASSWORD_MISMATCH
             else -> null
@@ -171,7 +175,7 @@ class CreateViewModel @Inject constructor(
     }
 
     /** Keeps auto-lock away while a system picker is in front. */
-    fun onPicker(open: Boolean) = if (open) guard.acquire() else guard.release()
+    fun onPicker(open: Boolean) = if (open) guard.acquirePicker() else guard.releasePicker()
 
     fun onCancel() {
         cancel?.cancel()

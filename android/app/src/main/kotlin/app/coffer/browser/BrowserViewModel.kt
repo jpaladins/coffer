@@ -156,9 +156,9 @@ class BrowserViewModel @AssistedInject constructor(
     }
 
     /** Call before launching a system picker; the result callback calls [onPickerClosed]. */
-    fun onPickerOpening() = guard.acquire()
+    fun onPickerOpening() = guard.acquirePicker()
 
-    fun onPickerClosed() = guard.release()
+    fun onPickerClosed() = guard.releasePicker()
 
     fun onImport(uris: List<String>) {
         if (uris.isEmpty()) return

@@ -41,6 +41,9 @@ pub enum CofferError {
 
 impl From<std::io::Error> for CofferError {
     fn from(e: std::io::Error) -> Self {
-        CofferError::Io(e.to_string())
+        match e.kind() {
+            std::io::ErrorKind::StorageFull => CofferError::NoSpace,
+            _ => CofferError::Io(e.to_string()),
+        }
     }
 }

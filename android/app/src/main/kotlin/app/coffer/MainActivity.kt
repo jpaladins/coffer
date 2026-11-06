@@ -6,7 +6,10 @@ import android.os.Bundle
 import android.view.WindowManager
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.Surface
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Modifier
 import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -43,7 +46,10 @@ class MainActivity : FragmentActivity() {
             repeatOnLifecycle(Lifecycle.State.CREATED) {
                 combine(settings.secureWindow, settings.appLockMode) { secure, mode -> secure to mode }
                     .collect { (secure, mode) ->
-                        applySecure(secure && !e2e)
+                        // Below API 33 the recents thumbnail cannot be disabled on its own:
+                        // with an app lock, keep FLAG_SECURE on.
+                        val lockNeedsSecure = mode != AppLockMode.OFF && Build.VERSION.SDK_INT < 33
+                        applySecure((secure || lockNeedsSecure) && !e2e)
                         // With FLAG_SECURE off, an app lock still hides the recents thumbnail.
                         if (Build.VERSION.SDK_INT >= 33) setRecentsScreenshotEnabled(!secure && mode == AppLockMode.OFF)
                     }
@@ -54,9 +60,14 @@ class MainActivity : FragmentActivity() {
             CofferTheme {
                 val nav = rememberNavController()
                 val locked by appLock.isLocked.collectAsStateWithLifecycle()
+                val ready by appLock.ready.collectAsStateWithLifecycle()
+                val covered by appLock.covered.collectAsStateWithLifecycle()
                 val mode by settings.appLockMode.collectAsStateWithLifecycle(initialValue = AppLockMode.OFF)
                 if (locked) {
                     LockScreen(appLock, mode)
+                } else if (!ready || covered) {
+                    // Nothing of the vaults is drawn until the lock state is known.
+                    Surface(Modifier.fillMaxSize()) {}
                 } else {
                     CofferNavHost(sessions.openIds, settings, appLock, remembered.isAvailable(), nav)
                 }
