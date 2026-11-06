@@ -21,5 +21,6 @@ fun CofferException.userMessage(): String = when (this) {
     is CofferException.NotEmpty -> stringResource(R.string.error_not_empty, path.substringAfterLast('/'))
     is CofferException.ReadOnly -> stringResource(R.string.error_read_only)
     is CofferException.InvalidPath -> stringResource(R.string.error_invalid_name, path)
+    is CofferException.InvalidSize -> stringResource(R.string.error_invalid_size)
     else -> stringResource(R.string.error_generic, message ?: "")
 }

@@ -2,6 +2,11 @@
 package app.coffer.data
 
 import app.coffer.ffi.FfiCancel
+import app.coffer.ffi.FfiCreateOptions
+import app.coffer.ffi.FfiProgress
+import app.coffer.ffi.createFdSecret
+import app.coffer.ffi.listCiphers
+import app.coffer.ffi.listPrfs
 import app.coffer.ffi.FfiOpenOptions
 import app.coffer.ffi.FfiException
 import app.coffer.ffi.FfiVault
@@ -66,10 +71,39 @@ interface VaultHandle {
 const val MAX_IO = 4 shl 20
 
 /** Seam over the Rust core, so the data layer is testable on the JVM. */
+/** A new volume: [cipher]/[prf] are core names, [fs] is "exFAT" or "FAT". */
+class CreateOptions(
+    val size: Long,
+    val cipher: String,
+    val prf: String,
+    val pim: Int,
+    val fs: String,
+    val quick: Boolean,
+    val label: String,
+    /** Optional user entropy (touch samples), mixed into the OS RNG. */
+    val extraEntropy: ByteArray,
+)
+
 interface NativeVaults {
     fun newCancel(): CancelSignal
     /** Takes ownership of [fd]. */
     fun open(fd: Int, creds: NativeCredentials, cancel: CancelSignal): VaultHandle
+
+    /**
+     * Creates and formats a volume in the file behind [fd] (opened for
+     * writing; takes ownership), resizing it to [CreateOptions.size].
+     * [progress] runs on the calling thread.
+     */
+    fun create(
+        fd: Int,
+        creds: NativeCredentials,
+        options: CreateOptions,
+        progress: (Long, Long) -> Unit,
+        cancel: CancelSignal,
+    ): VaultHandle = throw CofferException.Unsupported("create")
+
+    fun ciphers(): List<String> = listOf("AES")
+    fun prfs(): List<String> = listOf("SHA-512")
 }
 
 class FfiNativeVaults : NativeVaults {
@@ -78,6 +112,49 @@ class FfiNativeVaults : NativeVaults {
     }
 
     override fun newCancel(): CancelSignal = Cancel(FfiCancel())
+
+    override fun ciphers(): List<String> = listCiphers()
+
+    override fun prfs(): List<String> = listPrfs()
+
+    override fun create(
+        fd: Int,
+        creds: NativeCredentials,
+        options: CreateOptions,
+        progress: (Long, Long) -> Unit,
+        cancel: CancelSignal,
+    ): VaultHandle {
+        val ffiOptions = FfiCreateOptions(
+            size = options.size.toULong(),
+            cipher = options.cipher,
+            prf = options.prf,
+            pim = options.pim.toUInt(),
+            fs = options.fs,
+            quick = options.quick,
+            label = options.label,
+            extraEntropy = options.extraEntropy,
+        )
+        val listener = object : FfiProgress {
+            override fun onProgress(done: ULong, total: ULong) = progress(done.toLong(), total.toLong())
+        }
+        val secret = secretBlob(creds.password, creds.keyfiles)
+        try {
+            val vault = native {
+                createFdSecret(
+                    fd,
+                    Pointer.nativeValue(secret).toULong(),
+                    secret.size().toULong(),
+                    ffiOptions,
+                    listener,
+                    (cancel as Cancel).ffi,
+                )
+            }
+            return FfiHandle(vault)
+        } finally {
+            secret.clear()
+            secret.close()
+        }
+    }
 
     override fun open(fd: Int, creds: NativeCredentials, cancel: CancelSignal): VaultHandle {
         val options = FfiOpenOptions(

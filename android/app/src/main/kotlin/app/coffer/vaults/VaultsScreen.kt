@@ -58,6 +58,7 @@ fun VaultsScreen(
     viewModel: VaultsViewModel,
     autoLockMs: Long?,
     onAutoLockChange: (Long) -> Unit,
+    onCreate: () -> Unit,
     onOpen: (id: String, isOpen: Boolean) -> Unit,
 ) {
     var showSettings by remember { mutableStateOf(false) }
@@ -71,6 +72,7 @@ fun VaultsScreen(
     VaultsContent(
         state = state,
         onAdd = { picker.launch(arrayOf("*/*")) },
+        onCreate = onCreate,
         onOpen = { onOpen(it.id, viewModel.isOpen(it.id)) },
         onRemove = viewModel::onRemove,
         onLockAll = viewModel::onLockAll,
@@ -87,7 +89,9 @@ fun VaultsContent(
     onRemove: (String) -> Unit,
     onLockAll: () -> Unit,
     onSettings: () -> Unit = {},
+    onCreate: () -> Unit = {},
 ) {
+    var addMenu by remember { mutableStateOf(false) }
     Scaffold(
         topBar = {
             TopAppBar(
@@ -106,16 +110,22 @@ fun VaultsContent(
         },
         floatingActionButton = {
             if (state.vaults.isNotEmpty()) {
-                ExtendedFloatingActionButton(
-                    onClick = onAdd,
-                    icon = { Icon(Icons.Filled.Add, contentDescription = null) },
-                    text = { Text(stringResource(R.string.vaults_add)) },
-                )
+                Box {
+                    ExtendedFloatingActionButton(
+                        onClick = { addMenu = true },
+                        icon = { Icon(Icons.Filled.Add, contentDescription = null) },
+                        text = { Text(stringResource(R.string.vaults_add)) },
+                    )
+                    DropdownMenu(expanded = addMenu, onDismissRequest = { addMenu = false }) {
+                        DropdownMenuItem(text = { Text(stringResource(R.string.vaults_add_existing)) }, onClick = { addMenu = false; onAdd() })
+                        DropdownMenuItem(text = { Text(stringResource(R.string.vaults_create_new)) }, onClick = { addMenu = false; onCreate() })
+                    }
+                }
             }
         },
     ) { padding ->
         if (state.loaded && state.vaults.isEmpty()) {
-            EmptyVaults(Modifier.padding(padding), onAdd)
+            EmptyVaults(Modifier.padding(padding), onAdd, onCreate)
         } else {
             LazyColumn(
                 Modifier.fillMaxSize().padding(padding),
@@ -162,7 +172,7 @@ private fun VaultCard(item: VaultItem, onOpen: (VaultItem) -> Unit, onRemove: (S
 }
 
 @Composable
-private fun EmptyVaults(modifier: Modifier, onAdd: () -> Unit) {
+private fun EmptyVaults(modifier: Modifier, onAdd: () -> Unit, onCreate: () -> Unit) {
     Column(
         modifier.fillMaxSize().padding(32.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -182,7 +192,11 @@ private fun EmptyVaults(modifier: Modifier, onAdd: () -> Unit) {
         Button(onClick = onAdd) {
             Icon(Icons.Filled.Add, contentDescription = null)
             Spacer(Modifier.width(8.dp))
-            Text(stringResource(R.string.vaults_add))
+            Text(stringResource(R.string.vaults_add_existing))
+        }
+        Spacer(Modifier.height(8.dp))
+        androidx.compose.material3.OutlinedButton(onClick = onCreate) {
+            Text(stringResource(R.string.vaults_create_new))
         }
     }
 }

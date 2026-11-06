@@ -25,6 +25,8 @@ sealed class CofferException(message: String) : Exception(message) {
     class NotEmpty(val path: String) : CofferException(path)
     /** Opened read-only (by choice, or the file/provider is not writable). */
     class ReadOnly : CofferException("volume is read-only")
+    /** Container size below the filesystem minimum (or not a multiple of 512). */
+    class InvalidSize(val detail: String) : CofferException(detail)
 }
 
 internal fun FfiException.toCoffer(): CofferException = when (this) {
@@ -44,4 +46,5 @@ internal fun FfiException.toCoffer(): CofferException = when (this) {
     is FfiException.AlreadyExists -> CofferException.AlreadyExists(path)
     is FfiException.NotEmpty -> CofferException.NotEmpty(path)
     is FfiException.ReadOnly -> CofferException.ReadOnly()
+    is FfiException.InvalidSize -> CofferException.InvalidSize(detail)
 }

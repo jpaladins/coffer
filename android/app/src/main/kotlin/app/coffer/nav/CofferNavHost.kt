@@ -20,6 +20,7 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import app.coffer.browser.BrowserScreen
 import app.coffer.browser.BrowserViewModel
+import app.coffer.create.CreateScreen
 import app.coffer.unlock.UnlockScreen
 import app.coffer.unlock.UnlockViewModel
 import app.coffer.vaults.VaultsScreen
@@ -28,6 +29,7 @@ import app.coffer.viewer.ViewerViewModel
 
 object Routes {
     const val VAULTS = "vaults"
+    const val CREATE = "create"
     fun unlock(id: String) = "unlock/${Uri.encode(id)}"
     fun browser(id: String) = "browser/${Uri.encode(id)}"
     fun viewer(id: String, path: String) = "viewer/${Uri.encode(id)}?path=${Uri.encode(path)}"
@@ -63,8 +65,14 @@ fun CofferNavHost(
                 hiltViewModel(),
                 autoLockMs = autoLockMs,
                 onAutoLockChange = { ms -> scope.launch { settings.setAutoLockMs(ms) } },
+                onCreate = { nav.navigate(Routes.CREATE) },
             ) { id, isOpen ->
                 nav.navigate(if (isOpen) Routes.browser(id) else Routes.unlock(id))
+            }
+        }
+        composable(Routes.CREATE) {
+            CreateScreen(hiltViewModel(), onBack = { nav.popBackStack() }) { vaultId ->
+                nav.navigate(Routes.browser(vaultId)) { popUpTo(Routes.VAULTS) }
             }
         }
         composable("unlock/{id}", listOf(navArgument("id") { type = NavType.StringType })) { entry ->

@@ -20,7 +20,22 @@ interface FdOpener {
     fun openWriteFd(uri: String): Int
     /** First [maxBytes] bytes of a document (keyfiles). */
     fun readPrefix(uri: String, maxBytes: Int): ByteArray
+    /** Deletes a document Coffer created (a failed or cancelled creation). */
+    fun deleteDocument(uri: String) {}
 }
+
+/** A new container; [password] is wiped by [SessionManager.create]. */
+class CreateRequest(
+    val password: CharArray,
+    val keyfileUris: List<String>,
+    val pim: Int,
+    val cipher: String,
+    val prf: String,
+    val fs: String,
+    val size: Long,
+    val quick: Boolean,
+    val extraEntropy: ByteArray = ByteArray(0),
+)
 
 /**
  * [password] and [hiddenPassword] are wiped by [SessionManager.unlock];
@@ -156,6 +171,55 @@ class SessionManager(
                 keyfiles.forEach { it.fill(0) }
             }
         }
+
+    /**
+     * Creates a container in the (new, empty) document [uri], adds it to
+     * the list as [label] and opens it read-write. On failure or
+     * cancellation the document is deleted and nothing is added.
+     * @throws CofferException
+     */
+    suspend fun create(
+        uri: String,
+        label: String,
+        req: CreateRequest,
+        progress: (Long, Long) -> Unit,
+        cancel: CancelSignal,
+    ): VaultSession = withContext(io) {
+        val startEpoch = synchronized(lock) { epoch }
+        inFlight += cancel
+        val password = req.password.toUtf8Bytes()
+        req.password.fill('\u0000')
+        val keyfiles = mutableListOf<ByteArray>()
+        try {
+            val handle = try {
+                req.keyfileUris.forEach { keyfiles += platform { opener.readPrefix(it, KEYFILE_MAX) } }
+                val fd = platform { opener.openWriteFd(uri) }
+                val creds = NativeCredentials(password, req.pim, keyfiles, req.prf, maxKdfMemory(), false, writable = true)
+                val options = CreateOptions(req.size, req.cipher, req.prf, req.pim, req.fs, req.quick, "Coffer", req.extraEntropy)
+                native.create(fd, creds, options, progress, cancel)
+            } catch (e: Throwable) {
+                runCatching { opener.deleteDocument(uri) }
+                throw if (e is CofferException) e else CofferException.Io(e.message ?: e.toString())
+            }
+            val ref = store.add(uri, label)
+            runCatching { store.rememberPrf(ref.id, handle.info.prf) }
+            val session = VaultSession(ref, handle)
+            synchronized(lock) {
+                if (epoch != startEpoch) {
+                    // Auto-lock ran meanwhile: the container exists, but stays locked.
+                    handle.lock()
+                    throw CofferException.Cancelled()
+                }
+                sessions[ref.id] = session
+                _openIds.value = sessions.keys.toSet()
+            }
+            session
+        } finally {
+            inFlight -= cancel
+            password.fill(0)
+            keyfiles.forEach { it.fill(0) }
+        }
+    }
 
     private fun locked(s: VaultSession) {
         s.handle.lock()

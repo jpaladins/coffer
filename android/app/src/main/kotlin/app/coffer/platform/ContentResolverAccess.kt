@@ -4,6 +4,7 @@ package app.coffer.platform
 import android.content.ContentResolver
 import android.content.Intent
 import android.net.Uri
+import android.provider.DocumentsContract
 import android.provider.OpenableColumns
 import app.coffer.data.FdOpener
 import app.coffer.transfer.ImportSource
@@ -27,6 +28,10 @@ class ContentResolverAccess(private val resolver: ContentResolver) : FdOpener, D
     override fun openWriteFd(uri: String): Int =
         resolver.openFileDescriptor(Uri.parse(uri), "rw")?.detachFd()
             ?: throw FileNotFoundException(uri)
+
+    override fun deleteDocument(uri: String) {
+        DocumentsContract.deleteDocument(resolver, Uri.parse(uri))
+    }
 
     override fun openInput(uri: String): InputStream =
         resolver.openInputStream(Uri.parse(uri)) ?: throw FileNotFoundException(uri)
