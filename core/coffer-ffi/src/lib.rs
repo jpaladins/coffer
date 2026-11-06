@@ -47,6 +47,8 @@ pub enum FfiError {
     NotEmpty { path: String },
     #[error("read-only")]
     ReadOnly,
+    #[error("invalid container size: {detail}")]
+    InvalidSize { detail: String },
 }
 
 impl From<CofferError> for FfiError {
@@ -69,7 +71,7 @@ impl From<CofferError> for FfiError {
             CofferError::AlreadyExists(path) => FfiError::AlreadyExists { path },
             CofferError::NotEmpty(path) => FfiError::NotEmpty { path },
             CofferError::ReadOnly => FfiError::ReadOnly,
-            CofferError::InvalidSize(detail) => FfiError::Unsupported { detail },
+            CofferError::InvalidSize(detail) => FfiError::InvalidSize { detail },
         }
     }
 }
@@ -367,7 +369,14 @@ pub fn open_device_secret(
         }
     }
     let hidden_protected = vol.is_hidden_protected();
-    let vol = Arc::new(vol);
+    vault_from(Arc::new(vol), writable, hidden_protected)
+}
+
+fn vault_from(
+    vol: Arc<coffer_volume::OpenedVolume>,
+    writable: bool,
+    hidden_protected: bool,
+) -> Result<Arc<FfiVault>, FfiError> {
     let info_base = (
         vol.header.suite.name().to_string(),
         vol.header.prf.name().to_string(),
@@ -427,6 +436,167 @@ pub fn open_fd_secret(
     };
     let dev: Arc<dyn BlockDevice> = Arc::new(FileDevice::from_file(file, writable)?);
     open_device_secret(dev, secret, options, writable, hidden, cancel)
+}
+
+/// Progress of a long operation (volume creation), called from the
+/// worker thread.
+#[uniffi::export(with_foreign)]
+pub trait FfiProgress: Send + Sync {
+    fn on_progress(&self, done: u64, total: u64);
+}
+
+/// Options of a new volume. `cipher`/`prf` are names from [`list_ciphers`]
+/// and [`list_prfs`]; `fs` is "exFAT" or "FAT". `extra_entropy` (e.g. touch
+/// samples) is mixed into the OS random bytes, never replacing them.
+#[derive(Debug, Clone, uniffi::Record)]
+pub struct FfiCreateOptions {
+    pub size: u64,
+    pub cipher: String,
+    pub prf: String,
+    pub pim: u32,
+    pub fs: String,
+    pub quick: bool,
+    pub label: String,
+    pub extra_entropy: Vec<u8>,
+}
+
+#[uniffi::export]
+pub fn list_ciphers() -> Vec<String> {
+    coffer_crypto::CipherSuite::ALL
+        .iter()
+        .map(|c| c.name().to_string())
+        .collect()
+}
+
+#[uniffi::export]
+pub fn list_prfs() -> Vec<String> {
+    Prf::ALL.iter().map(|p| p.name().to_string()).collect()
+}
+
+/// OS randomness XORed with a SHA-512 keystream keyed by `extra`: the
+/// result is at least as unpredictable as the OS bytes alone.
+struct MixedRng {
+    key: Zeroizing<Vec<u8>>,
+    counter: u64,
+}
+
+impl MixedRng {
+    fn new(extra: &[u8]) -> Result<Self, CofferError> {
+        let mut salt = Zeroizing::new([0u8; 64]);
+        os_random(salt.as_mut())?;
+        let mut key = Zeroizing::new(salt.to_vec());
+        key.extend_from_slice(extra);
+        Ok(Self { key, counter: 0 })
+    }
+
+    fn fill(&mut self, buf: &mut [u8]) -> Result<(), CofferError> {
+        use sha2::{Digest, Sha512};
+        os_random(buf)?;
+        for chunk in buf.chunks_mut(64) {
+            let mut h = Sha512::new();
+            h.update(&self.key[..]);
+            h.update(self.counter.to_le_bytes());
+            self.counter += 1;
+            let block = h.finalize();
+            for (b, k) in chunk.iter_mut().zip(block.iter()) {
+                *b ^= k;
+            }
+        }
+        Ok(())
+    }
+}
+
+fn os_random(buf: &mut [u8]) -> Result<(), CofferError> {
+    getrandom::fill(buf).map_err(|e| CofferError::Io(format!("system RNG: {e}")))
+}
+
+/// Creates a volume on `dev` (already `options.size` bytes long), formats
+/// it and returns it opened read-write. `secret` is wiped.
+pub fn create_device_secret(
+    dev: Arc<dyn BlockDevice>,
+    secret: &mut [u8],
+    options: FfiCreateOptions,
+    progress: Arc<dyn FfiProgress>,
+    cancel: Arc<FfiCancel>,
+) -> Result<Arc<FfiVault>, FfiError> {
+    let secrets = take_secrets(secret)?;
+    let suite = coffer_crypto::CipherSuite::from_name(&options.cipher).ok_or_else(|| {
+        FfiError::Unsupported {
+            detail: format!("unknown cipher {}", options.cipher),
+        }
+    })?;
+    let prf = Prf::from_name(&options.prf).ok_or_else(|| FfiError::Unsupported {
+        detail: format!("unknown KDF {}", options.prf),
+    })?;
+    let (fs, min) = match options.fs.as_str() {
+        "exFAT" => (coffer_fs::FsChoice::ExFat, coffer_volume::MIN_EXFAT),
+        "FAT" => (coffer_fs::FsChoice::Fat, coffer_volume::MIN_FAT),
+        other => {
+            return Err(FfiError::Unsupported {
+                detail: format!("filesystem {other}"),
+            })
+        }
+    };
+    if options.size < min {
+        return Err(FfiError::InvalidSize {
+            detail: format!(
+                "{} bytes; {} needs at least {min}",
+                options.size, options.fs
+            ),
+        });
+    }
+    let mut creds = Credentials::new(&secrets.password);
+    creds.pim = options.pim;
+    creds.keyfiles = secrets.keyfiles;
+    let params = coffer_volume::CreateParams {
+        size: options.size,
+        suite,
+        prf,
+        quick: options.quick,
+    };
+    let mut rng = MixedRng::new(&options.extra_entropy)?;
+    let mut fill = |b: &mut [u8]| rng.fill(b);
+    let report = |done: u64, total: u64| progress.on_progress(done, total);
+    let vol =
+        coffer_volume::create_volume(dev, &creds, &params, &mut fill, &report, &cancel.token)?;
+    if cancel.token.is_cancelled() {
+        return Err(FfiError::Cancelled);
+    }
+    let mut serial = [0u8; 4];
+    rng.fill(&mut serial)?;
+    let vol = Arc::new(vol);
+    coffer_fs::format(vol.clone(), fs, &options.label, u32::from_le_bytes(serial))?;
+    if options.quick {
+        progress.on_progress(1, 1);
+    }
+    vault_from(vol, true, false)
+}
+
+/// Creates a volume in the file behind `fd` (Android SAF, opened "rw"):
+/// sets its length to `options.size`, then as [`create_device_secret`].
+/// Takes ownership of `fd`. Secrets as in [`open_fd_secret`].
+#[uniffi::export]
+pub fn create_fd_secret(
+    fd: i32,
+    secret_ptr: u64,
+    secret_len: u64,
+    options: FfiCreateOptions,
+    progress: Arc<dyn FfiProgress>,
+    cancel: Arc<FfiCancel>,
+) -> Result<Arc<FfiVault>, FfiError> {
+    let file = file_from_fd(fd)?;
+    let secret = caller_memory(secret_ptr, secret_len)?;
+    file.set_len(options.size).map_err(|e| {
+        if e.kind() == std::io::ErrorKind::StorageFull {
+            FfiError::NoSpace
+        } else {
+            FfiError::Io {
+                detail: e.to_string(),
+            }
+        }
+    })?;
+    let dev: Arc<dyn BlockDevice> = Arc::new(FileDevice::from_file(file, true)?);
+    create_device_secret(dev, secret, options, progress, cancel)
 }
 
 fn caller_memory<'a>(ptr: u64, len: u64) -> Result<&'a mut [u8], FfiError> {

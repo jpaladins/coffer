@@ -135,8 +135,8 @@ pub fn format(dev: &dyn BlockDevice, label: &str, serial: u32) -> Result<(), Cof
             b[o..o + 4].copy_from_slice(&0xAA55_0000u32.to_le_bytes());
         }
         let sum = boot_checksum(&b[..11 * SECTOR as usize]);
-        for w in b[11 * SECTOR as usize..].chunks_exact_mut(4) {
-            w.copy_from_slice(&sum.to_le_bytes());
+        for w in b[11 * SECTOR as usize..].as_chunks_mut::<4>().0 {
+            *w = sum.to_le_bytes();
         }
     }
     dev.write_at(0, &region)?;

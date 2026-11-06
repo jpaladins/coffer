@@ -3,7 +3,7 @@ use coffer_crypto::{encrypt_header, CipherSuite, Credentials, Prf, VolumeHeader,
 use coffer_ffi::{open_device_secret, FfiCancel, FfiError, MAX_READ};
 use coffer_volume::{BlockDevice, MemDevice, DATA_START};
 use std::io::{Cursor, Write};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use zeroize::Zeroizing;
 
 const LEN: u64 = 4 * 1024 * 1024;
@@ -269,4 +269,123 @@ fn hidden_protection_needs_a_hidden_volume() {
     );
     assert!(matches!(r, Err(FfiError::WrongCredentials)));
     assert!(hidden.iter().all(|b| *b == 0), "hidden secrets wiped");
+}
+
+// ---- P5: creating ----
+
+struct Progress(Mutex<Vec<(u64, u64)>>, Option<Arc<FfiCancel>>);
+
+impl coffer_ffi::FfiProgress for Progress {
+    fn on_progress(&self, done: u64, total: u64) {
+        self.0.lock().unwrap().push((done, total));
+        if done > 0 {
+            if let Some(c) = &self.1 {
+                c.cancel();
+            }
+        }
+    }
+}
+
+fn create_opts(fs: &str, quick: bool, size: u64) -> coffer_ffi::FfiCreateOptions {
+    coffer_ffi::FfiCreateOptions {
+        size,
+        cipher: "AES".into(),
+        prf: "SHA-512".into(),
+        pim: 1,
+        fs: fs.into(),
+        quick,
+        label: "Coffer".into(),
+        extra_entropy: vec![1, 2, 3, 4],
+    }
+}
+
+fn empty_device(size: u64) -> Arc<dyn BlockDevice> {
+    Arc::new(coffer_volume::MemDevice::new(vec![0u8; size as usize]))
+}
+
+#[test]
+fn create_then_write_and_reopen() {
+    for fs in ["exFAT", "FAT"] {
+        let dev = empty_device(4 << 20);
+        let progress = Arc::new(Progress(Mutex::new(Vec::new()), None));
+        let mut b = blob(b"new-pass", &[]);
+        let v = coffer_ffi::create_device_secret(
+            dev.clone(),
+            &mut b,
+            create_opts(fs, false, 4 << 20),
+            progress.clone(),
+            FfiCancel::new(),
+        )
+        .unwrap();
+        assert!(b.iter().all(|x| *x == 0), "secrets not wiped");
+        assert!(v.info().writable);
+        assert_eq!(v.info().cipher, "AES");
+        v.create_file("/a.txt".into()).unwrap();
+        v.write("/a.txt".into(), 0, b"hi".to_vec()).unwrap();
+        v.lock();
+        let mut b = blob(b"new-pass", &[]);
+        let again =
+            coffer_ffi::open_device_secret(dev, &mut b, opts(), false, None, FfiCancel::new())
+                .unwrap();
+        assert_eq!(again.read("/a.txt".into(), 0, 10).unwrap(), b"hi");
+        let p = progress.0.lock().unwrap();
+        assert_eq!(
+            p.last().map(|x| x.0 == x.1),
+            Some(true),
+            "{fs}: progress did not reach total"
+        );
+    }
+}
+
+#[test]
+fn create_can_be_cancelled() {
+    let dev = empty_device(8 << 20);
+    let cancel = FfiCancel::new();
+    let progress = Arc::new(Progress(Mutex::new(Vec::new()), Some(cancel.clone())));
+    let mut b = blob(b"new-pass", &[]);
+    let r = coffer_ffi::create_device_secret(
+        dev,
+        &mut b,
+        create_opts("exFAT", false, 8 << 20),
+        progress,
+        cancel,
+    );
+    assert!(matches!(r, Err(FfiError::Cancelled)));
+}
+
+#[test]
+fn create_rejects_bad_options() {
+    let mut b = blob(b"p", &[]);
+    let mut o = create_opts("exFAT", true, 4 << 20);
+    o.cipher = "Rot13".into();
+    let p = Arc::new(Progress(Mutex::new(Vec::new()), None));
+    assert!(matches!(
+        coffer_ffi::create_device_secret(
+            empty_device(4 << 20),
+            &mut b,
+            o,
+            p.clone(),
+            FfiCancel::new()
+        ),
+        Err(FfiError::Unsupported { .. })
+    ));
+    let mut b = blob(b"p", &[]);
+    // exFAT needs at least 4 MiB of container.
+    assert!(matches!(
+        coffer_ffi::create_device_secret(
+            empty_device(2 << 20),
+            &mut b,
+            create_opts("exFAT", true, 2 << 20),
+            p,
+            FfiCancel::new()
+        ),
+        Err(FfiError::InvalidSize { .. })
+    ));
+}
+
+#[test]
+fn lists_ciphers_and_prfs() {
+    assert_eq!(coffer_ffi::list_ciphers().len(), 15);
+    assert_eq!(coffer_ffi::list_ciphers()[0], "AES");
+    assert!(coffer_ffi::list_prfs().contains(&"Argon2id".to_string()));
 }
