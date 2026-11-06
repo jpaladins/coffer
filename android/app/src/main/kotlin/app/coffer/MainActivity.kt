@@ -1,15 +1,21 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package app.coffer
 
+import android.Manifest
+import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import android.view.WindowManager
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.core.content.ContextCompat
+import androidx.core.content.edit
 import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -36,6 +42,8 @@ class MainActivity : FragmentActivity() {
     @Inject lateinit var settings: SecuritySettings
     @Inject lateinit var appLock: AppLock
     @Inject lateinit var remembered: RememberedPasswords
+
+    private val notificationPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) {}
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -69,10 +77,26 @@ class MainActivity : FragmentActivity() {
                     // Nothing of the vaults is drawn until the lock state is known.
                     Surface(Modifier.fillMaxSize()) {}
                 } else {
+                    LaunchedEffect(Unit) { if (!e2e) askNotificationsOnce() }
                     CofferNavHost(sessions.openIds, settings, appLock, remembered.isAvailable(), nav)
                 }
             }
         }
+    }
+
+    /**
+     * Android 13+: the import progress notification needs this permission.
+     * Asked once on first launch, after any app lock; if refused, the
+     * browser asks again right before the first import.
+     */
+    private fun askNotificationsOnce() {
+        if (Build.VERSION.SDK_INT < 33) return
+        val granted = ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) ==
+            PackageManager.PERMISSION_GRANTED
+        val prefs = getSharedPreferences(PREFS_UI, MODE_PRIVATE)
+        if (granted || prefs.getBoolean(KEY_NOTIFICATIONS_ASKED, false)) return
+        prefs.edit { putBoolean(KEY_NOTIFICATIONS_ASKED, true) }
+        notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
     }
 
     private fun applySecure(on: Boolean) {
@@ -85,5 +109,7 @@ class MainActivity : FragmentActivity() {
 
     companion object {
         const val EXTRA_E2E_SCREENS = "e2e_screens"
+        private const val PREFS_UI = "ui"
+        private const val KEY_NOTIFICATIONS_ASKED = "notifications_asked"
     }
 }
