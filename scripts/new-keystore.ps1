@@ -20,5 +20,5 @@ storeFile=$($Out.Replace('\', '/'))
 storePassword=$plain
 keyAlias=coffer
 keyPassword=$plain
-"@ | Set-Content -Encoding utf8 (Join-Path $root 'android\keystore.properties')
+"@ | ForEach-Object { [IO.File]::WriteAllText((Join-Path $root 'android\keystore.properties'), $_, (New-Object Text.UTF8Encoding $false)) }
 Write-Host "Key created at $Out. Back it up offline together with its password."
