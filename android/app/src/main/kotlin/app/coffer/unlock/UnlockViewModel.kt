@@ -20,6 +20,10 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import app.coffer.security.KeyInvalidatedException
+import app.coffer.security.NoRememberedPasswords
+import app.coffer.security.RememberedPasswords
+import javax.crypto.Cipher
 
 sealed interface UnlockPhase {
     data object Idle : UnlockPhase
@@ -41,6 +45,13 @@ data class UnlockUiState(
     val readOnly: Boolean = false,
     /** Asks for the hidden volume's password to keep it safe from writes. */
     val protectHidden: Boolean = false,
+    /** Unlocked, but the volume was not cleanly closed: read-only or continue? */
+    val dirtyPrompt: Boolean = false,
+    /** A password for this vault is saved behind the fingerprint. */
+    val hasRemembered: Boolean = false,
+    val biometricAvailable: Boolean = false,
+    /** The saved password was dropped because the fingerprints changed. */
+    val biometricInvalidated: Boolean = false,
 ) {
     val busy: Boolean get() = phase == UnlockPhase.Unlocking
 }
@@ -57,6 +68,7 @@ class UnlockViewModel @AssistedInject constructor(
     @Assisted private val vaultId: String,
     private val store: VaultStore,
     private val sessions: SessionManager,
+    private val remembered: RememberedPasswords = NoRememberedPasswords,
 ) : ViewModel() {
     @AssistedFactory
     interface Factory {
@@ -74,8 +86,58 @@ class UnlockViewModel @AssistedInject constructor(
     init {
         viewModelScope.launch {
             val ref = store.vaults.first().firstOrNull { it.id == vaultId }
-            _uiState.update { it.copy(label = ref?.label ?: "") }
+            val has = runCatching { remembered.has(vaultId) }.getOrDefault(false)
+            _uiState.update {
+                it.copy(label = ref?.label ?: "", hasRemembered = has, biometricAvailable = remembered.isAvailable())
+            }
         }
+    }
+
+    /** Cipher for BiometricPrompt to recall the saved password; null if unusable. */
+    suspend fun decryptCipher(): Cipher? = try {
+        remembered.decrypter(vaultId)
+    } catch (_: KeyInvalidatedException) {
+        runCatching { remembered.forget(vaultId) }
+        _uiState.update { it.copy(hasRemembered = false, biometricInvalidated = true) }
+        null
+    }
+
+    /** Cipher for BiometricPrompt to save the password; null if unusable. */
+    fun encryptCipher(): Cipher? = try {
+        remembered.encrypter(vaultId)
+    } catch (_: Exception) {
+        null
+    }
+
+    /** After BiometricPrompt succeeded with [decryptCipher]'s cipher. */
+    fun onBiometricAuthenticated(cipher: Cipher) {
+        viewModelScope.launch {
+            val password = try {
+                remembered.recall(vaultId, cipher)
+            } catch (_: Exception) {
+                runCatching { remembered.forget(vaultId) }
+                _uiState.update { it.copy(hasRemembered = false, biometricInvalidated = true) }
+                return@launch
+            }
+            onUnlock(password, fromRemembered = true)
+        }
+    }
+
+    /** Unlocks and, only if that succeeds, saves the password with [cipher]. */
+    fun onUnlockRemembering(password: CharArray, cipher: Cipher) {
+        onUnlock(password, rememberWith = cipher)
+    }
+
+    /** Volume not cleanly closed: continue read-only (recommended). */
+    fun onDirtyReadOnly() {
+        _uiState.update { it.copy(dirtyPrompt = false) }
+        runCatching { sessions.session(vaultId)?.handle?.makeReadOnly() }
+        _effects.trySend(UnlockEffect.NavigateToBrowser(vaultId))
+    }
+
+    fun onDirtyContinue() {
+        _uiState.update { it.copy(dirtyPrompt = false) }
+        _effects.trySend(UnlockEffect.NavigateToBrowser(vaultId))
     }
 
     fun onPimChange(value: String) {
@@ -97,7 +159,13 @@ class UnlockViewModel @AssistedInject constructor(
     fun onRemoveKeyfile(uri: String) = _uiState.update { it.copy(keyfiles = it.keyfiles.filterNot { k -> k.uri == uri }) }
 
     /** Takes ownership of [password] and [hiddenPassword] and wipes them. */
-    fun onUnlock(password: CharArray, tryBackupHeaders: Boolean = false, hiddenPassword: CharArray? = null) {
+    fun onUnlock(
+        password: CharArray,
+        tryBackupHeaders: Boolean = false,
+        hiddenPassword: CharArray? = null,
+        fromRemembered: Boolean = false,
+        rememberWith: Cipher? = null,
+    ) {
         val st = _uiState.value
         val hidden = hiddenPassword?.takeIf { st.protectHidden && !st.readOnly && it.isNotEmpty() }
         if (hidden == null) hiddenPassword?.fill('\u0000')
@@ -107,6 +175,8 @@ class UnlockViewModel @AssistedInject constructor(
             return
         }
         val signal = sessions.newCancel().also { cancel = it }
+        // SessionManager wipes the password: keep a copy only to save it.
+        val toRemember = rememberWith?.let { password.copyOf() }
         _uiState.update { it.copy(phase = UnlockPhase.Unlocking) }
         viewModelScope.launch {
             val s = _uiState.value
@@ -117,12 +187,26 @@ class UnlockViewModel @AssistedInject constructor(
                     password, s.pim.toIntOrNull() ?: 0, s.keyfiles.map { it.uri }, s.prf, tryBackupHeaders,
                     writable = !s.readOnly, hiddenPassword = hidden,
                 )
-                sessions.unlock(ref, req, signal)
-                _uiState.update { it.copy(phase = UnlockPhase.Idle, offerBackupHeaders = false) }
-                _effects.send(UnlockEffect.NavigateToBrowser(vaultId))
+                val session = sessions.unlock(ref, req, signal)
+                if (toRemember != null && rememberWith != null) {
+                    runCatching { remembered.save(vaultId, rememberWith, toRemember) }
+                        .onSuccess { _uiState.update { it.copy(hasRemembered = true) } }
+                }
+                val info = session.handle.info
+                if (info.wasDirty && info.writable) {
+                    _uiState.update { it.copy(phase = UnlockPhase.Idle, offerBackupHeaders = false, dirtyPrompt = true) }
+                } else {
+                    _uiState.update { it.copy(phase = UnlockPhase.Idle, offerBackupHeaders = false) }
+                    _effects.send(UnlockEffect.NavigateToBrowser(vaultId))
+                }
             } catch (_: CofferException.Cancelled) {
                 _uiState.update { it.copy(phase = UnlockPhase.Idle) }
             } catch (e: CofferException) {
+                if (fromRemembered && e is CofferException.WrongCredentials) {
+                    // The volume password changed since it was saved.
+                    runCatching { remembered.forget(vaultId) }
+                    _uiState.update { it.copy(hasRemembered = false) }
+                }
                 _uiState.update {
                     it.copy(
                         phase = UnlockPhase.Error(e, hiddenRequested = hidden != null),
@@ -132,6 +216,7 @@ class UnlockViewModel @AssistedInject constructor(
             } finally {
                 password.fill('\u0000')
                 hidden?.fill('\u0000')
+                toRemember?.fill('\u0000')
                 cancel = null
             }
         }

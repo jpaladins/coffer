@@ -29,6 +29,10 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import app.coffer.security.LockGuard
+import app.coffer.security.AppLock
+import app.coffer.security.KeystoreRememberedPasswords
+import app.coffer.security.RememberedPasswords
+import app.coffer.security.SecuritySettings
 import app.coffer.transfer.TransferManager
 
 @Module
@@ -58,6 +62,13 @@ object AppModule {
 
     @Provides @Singleton
     fun lockGuard() = LockGuard()
+
+    @Provides @Singleton
+    fun remembered(@ApplicationContext ctx: Context, ds: DataStore<Preferences>): RememberedPasswords =
+        KeystoreRememberedPasswords(ctx, ds)
+
+    @Provides @Singleton
+    fun appLock(settings: SecuritySettings) = AppLock(settings) { System.currentTimeMillis() }
 
     @Provides @Singleton
     fun transfers(sessions: SessionManager, access: ContentResolverAccess, guard: LockGuard) =

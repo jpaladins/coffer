@@ -19,6 +19,7 @@ import kotlinx.coroutines.launch
 import app.coffer.security.LockGuard
 import app.coffer.transfer.TransferManager
 import app.coffer.transfer.TransferService
+import app.coffer.security.AppLock
 
 @HiltAndroidApp
 class CofferApp : Application() {
@@ -26,6 +27,7 @@ class CofferApp : Application() {
     @Inject lateinit var settings: SecuritySettings
     @Inject lateinit var guard: LockGuard
     @Inject lateinit var transfers: TransferManager
+    @Inject lateinit var appLock: AppLock
 
     override fun onCreate() {
         super.onCreate()
@@ -41,9 +43,18 @@ class CofferApp : Application() {
                 if (active) runCatching { TransferService.start(this@CofferApp) }
             }
         }
+        main.launch { appLock.onAppStart() }
         ProcessLifecycleOwner.get().lifecycle.addObserver(object : DefaultLifecycleObserver {
-            override fun onStop(owner: LifecycleOwner) = autoLock.onBackground()
-            override fun onStart(owner: LifecycleOwner) = autoLock.onForeground()
+            override fun onStop(owner: LifecycleOwner) {
+                autoLock.onBackground()
+                // A system picker opened by Coffer is not "leaving the app".
+                if (guard.held.value == 0) appLock.onBackground()
+            }
+
+            override fun onStart(owner: LifecycleOwner) {
+                autoLock.onForeground()
+                main.launch { appLock.onForeground(settings.currentAutoLockMs()) }
+            }
         })
     }
 }

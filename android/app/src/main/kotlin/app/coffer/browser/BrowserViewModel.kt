@@ -41,6 +41,7 @@ data class BrowserUiState(
     val hiddenProtected: Boolean = false,
     /** Writing was requested but the file grant or provider is read-only. */
     val writeDenied: Boolean = false,
+    val freeBytes: Long? = null,
     /** Import running in this vault. */
     val transfer: TransferProgress? = null,
     /** Path picked with "Move", waiting for "Move here". */
@@ -122,7 +123,8 @@ class BrowserViewModel @AssistedInject constructor(
             try {
                 val list = withContext(io) { session.handle.list(path) }
                     .sortedWith(compareBy<Entry> { !it.isDir }.thenBy(String.CASE_INSENSITIVE_ORDER) { it.name })
-                _uiState.update { it.copy(path = path, entries = list, loading = false) }
+                val free = withContext(io) { runCatching { session.handle.freeBytes() }.getOrNull() }
+                _uiState.update { it.copy(path = path, entries = list, loading = false, freeBytes = free) }
             } catch (e: CofferException.Closed) {
                 _effects.send(BrowserEffect.Exit)
             } catch (e: CofferException) {

@@ -13,4 +13,5 @@ import dagger.hilt.components.SingletonComponent
 interface AppEntryPoint {
     fun sessions(): SessionManager
     fun exporter(): Exporter
+    fun settings(): app.coffer.security.SecuritySettings
 }

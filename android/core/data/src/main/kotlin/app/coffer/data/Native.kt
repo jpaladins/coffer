@@ -27,6 +27,8 @@ data class VolumeInfo(
     val size: Long,
     val writable: Boolean = false,
     val hiddenProtected: Boolean = false,
+    /** Not cleanly closed last time: offer read-only before writing. */
+    val wasDirty: Boolean = false,
 )
 
 /** Secrets are zeroed by the caller right after [NativeVaults.open] returns. */
@@ -65,6 +67,10 @@ interface VaultHandle {
     fun remove(path: String): Unit = throw CofferException.ReadOnly()
     fun rename(from: String, to: String): Unit = throw CofferException.ReadOnly()
     fun sync() {}
+    /** Switches to read-only without locking (no password needed). */
+    fun makeReadOnly() {}
+    /** Free space in the volume, or null when unknown. */
+    fun freeBytes(): Long? = null
 }
 
 /** Largest read/write the native layer accepts in one call. */
@@ -229,12 +235,18 @@ private inline fun <T> native(block: () -> T): T =
     }
 
 private class FfiHandle(private val vault: FfiVault) : VaultHandle {
-    override val info: VolumeInfo = vault.info().let {
-        VolumeInfo(
-            it.cipher, it.prf, it.hidden, it.usedBackupHeader, it.fsKind, it.size.toLong(),
-            it.writable, it.hiddenProtected,
-        )
-    }
+    // Read on every access: makeReadOnly() changes `writable`.
+    override val info: VolumeInfo
+        get() = vault.info().let {
+            VolumeInfo(
+                it.cipher, it.prf, it.hidden, it.usedBackupHeader, it.fsKind, it.size.toLong(),
+                it.writable, it.hiddenProtected, it.wasDirty,
+            )
+        }
+
+    override fun makeReadOnly() = native { vault.makeReadOnly() }
+
+    override fun freeBytes(): Long? = native { vault.stats() }.freeBytes?.toLong()
 
     override fun createFile(path: String) = native { clock(); vault.createFile(path) }
     override fun mkdir(path: String) = native { clock(); vault.mkdir(path) }

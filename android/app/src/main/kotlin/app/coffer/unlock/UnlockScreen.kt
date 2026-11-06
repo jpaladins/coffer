@@ -70,6 +70,11 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.repeatOnLifecycle
 import app.coffer.R
+import app.coffer.security.authenticate
+import androidx.compose.material3.AlertDialog
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.fragment.app.FragmentActivity
+import kotlinx.coroutines.launch
 import app.coffer.data.CofferException
 import app.coffer.platform.ContentResolverAccess
 import app.coffer.ui.CofferMark
@@ -78,6 +83,11 @@ import app.coffer.ui.userMessage
 @Composable
 fun UnlockScreen(viewModel: UnlockViewModel, onBack: () -> Unit, onUnlocked: (String) -> Unit) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val activity = LocalContext.current as? FragmentActivity
+    val scope = rememberCoroutineScope()
+    var rememberChecked by remember { mutableStateOf(false) }
+    val rememberTitle = stringResource(R.string.unlock_fingerprint_title)
+    val cancelText = stringResource(R.string.unlock_cancel)
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     LaunchedEffect(Unit) {
         lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
@@ -100,9 +110,42 @@ fun UnlockScreen(viewModel: UnlockViewModel, onBack: () -> Unit, onUnlocked: (St
         onRemoveKeyfile = viewModel::onRemoveKeyfile,
         onReadOnlyChange = viewModel::onReadOnlyChange,
         onProtectHiddenChange = viewModel::onProtectHiddenChange,
-        onUnlock = viewModel::onUnlock,
+        onUnlock = { pw, backup, hidden ->
+            val cipher = if (rememberChecked && activity != null) viewModel.encryptCipher() else null
+            if (cipher == null || activity == null) {
+                viewModel.onUnlock(pw, backup, hidden)
+            } else {
+                authenticate(activity, rememberTitle, cancelText, cipher, onSuccess = { c ->
+                    viewModel.onUnlock(pw, backup, hidden, rememberWith = c)
+                }, onError = { viewModel.onUnlock(pw, backup, hidden) })
+            }
+        },
         onCancel = viewModel::onCancel,
+        rememberAvailable = state.biometricAvailable,
+        remember = rememberChecked,
+        onRememberChange = { rememberChecked = it },
+        onFingerprint = if (state.hasRemembered && activity != null) {
+            {
+                scope.launch {
+                    val c = viewModel.decryptCipher() ?: return@launch
+                    authenticate(activity, rememberTitle, cancelText, c, onSuccess = { unlocked ->
+                        unlocked?.let(viewModel::onBiometricAuthenticated)
+                    })
+                }
+            }
+        } else {
+            null
+        },
     )
+    if (state.dirtyPrompt) {
+        AlertDialog(
+            onDismissRequest = {},
+            title = { Text(stringResource(R.string.dirty_title)) },
+            text = { Text(stringResource(R.string.dirty_body)) },
+            confirmButton = { TextButton(onClick = viewModel::onDirtyReadOnly) { Text(stringResource(R.string.dirty_read_only)) } },
+            dismissButton = { TextButton(onClick = viewModel::onDirtyContinue) { Text(stringResource(R.string.dirty_continue)) } },
+        )
+    }
 }
 
 /** Copies the field into a CharArray and clears the field. */
@@ -125,6 +168,10 @@ fun UnlockContent(
     onProtectHiddenChange: (Boolean) -> Unit,
     onUnlock: (CharArray, Boolean, CharArray?) -> Unit,
     onCancel: () -> Unit,
+    rememberAvailable: Boolean = false,
+    remember: Boolean = false,
+    onRememberChange: (Boolean) -> Unit = {},
+    onFingerprint: (() -> Unit)? = null,
 ) {
     // Deliberately not rememberSaveable: the password must not be written
     // to the saved-instance Bundle, so it is lost on rotation.
@@ -231,6 +278,20 @@ fun UnlockContent(
                     },
                 )
                 UnlockPhase.Idle -> Unit
+            }
+            if (state.biometricInvalidated) {
+                Text(stringResource(R.string.unlock_fingerprint_invalidated), style = MaterialTheme.typography.bodySmall)
+            }
+            if (!state.busy && onFingerprint != null) {
+                OutlinedButton(onClick = onFingerprint, modifier = Modifier.fillMaxWidth()) {
+                    Text(stringResource(R.string.unlock_with_fingerprint))
+                }
+            }
+            if (!state.busy && rememberAvailable && !state.hasRemembered) {
+                SwitchRow(stringResource(R.string.unlock_remember), remember, true, onRememberChange)
+                if (remember) {
+                    Text(stringResource(R.string.unlock_remember_warning), style = MaterialTheme.typography.bodySmall)
+                }
             }
             if (!state.busy) {
                 Button(onClick = { submit(false) }, enabled = !hiddenMissing, modifier = Modifier.fillMaxWidth().height(52.dp)) {

@@ -1,33 +1,74 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package app.coffer
 
+import android.os.Build
 import android.os.Bundle
 import android.view.WindowManager
-import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.runtime.getValue
+import androidx.fragment.app.FragmentActivity
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
+import androidx.navigation.compose.rememberNavController
 import app.coffer.data.SessionManager
 import app.coffer.nav.CofferNavHost
+import app.coffer.security.AppLock
+import app.coffer.security.AppLockMode
+import app.coffer.security.LockScreen
+import app.coffer.security.RememberedPasswords
 import app.coffer.security.SecuritySettings
 import app.coffer.ui.theme.CofferTheme
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.launch
 
+/** A FragmentActivity: BiometricPrompt needs one. */
 @AndroidEntryPoint
-class MainActivity : ComponentActivity() {
+class MainActivity : FragmentActivity() {
     @Inject lateinit var sessions: SessionManager
     @Inject lateinit var settings: SecuritySettings
+    @Inject lateinit var appLock: AppLock
+    @Inject lateinit var remembered: RememberedPasswords
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        // No screenshots, screen recording or recents thumbnails of vault contents.
-        // Debug builds only: E2E tests may lift it to capture screenshots.
-        if (!(BuildConfig.DEBUG && intent.getBooleanExtra(EXTRA_E2E_SCREENS, false))) {
-            window.setFlags(WindowManager.LayoutParams.FLAG_SECURE, WindowManager.LayoutParams.FLAG_SECURE)
+        // Debug builds only: E2E tests may lift FLAG_SECURE to capture screenshots.
+        val e2e = BuildConfig.DEBUG && intent.getBooleanExtra(EXTRA_E2E_SCREENS, false)
+        applySecure(!e2e)
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.CREATED) {
+                combine(settings.secureWindow, settings.appLockMode) { secure, mode -> secure to mode }
+                    .collect { (secure, mode) ->
+                        applySecure(secure && !e2e)
+                        // With FLAG_SECURE off, an app lock still hides the recents thumbnail.
+                        if (Build.VERSION.SDK_INT >= 33) setRecentsScreenshotEnabled(!secure && mode == AppLockMode.OFF)
+                    }
+            }
         }
         enableEdgeToEdge()
         setContent {
-            CofferTheme { CofferNavHost(sessions.openIds, settings) }
+            CofferTheme {
+                val nav = rememberNavController()
+                val locked by appLock.isLocked.collectAsStateWithLifecycle()
+                val mode by settings.appLockMode.collectAsStateWithLifecycle(initialValue = AppLockMode.OFF)
+                if (locked) {
+                    LockScreen(appLock, mode)
+                } else {
+                    CofferNavHost(sessions.openIds, settings, appLock, remembered.isAvailable(), nav)
+                }
+            }
+        }
+    }
+
+    private fun applySecure(on: Boolean) {
+        if (on) {
+            window.setFlags(WindowManager.LayoutParams.FLAG_SECURE, WindowManager.LayoutParams.FLAG_SECURE)
+        } else {
+            window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
         }
     }
 

@@ -24,7 +24,6 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.RadioButton
 import androidx.compose.foundation.selection.selectable
-import app.coffer.security.AUTOLOCK_OPTIONS
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenu
@@ -56,15 +55,10 @@ import app.coffer.ui.CofferMark
 @Composable
 fun VaultsScreen(
     viewModel: VaultsViewModel,
-    autoLockMs: Long?,
-    onAutoLockChange: (Long) -> Unit,
+    onSettings: () -> Unit,
     onCreate: () -> Unit,
     onOpen: (id: String, isOpen: Boolean) -> Unit,
 ) {
-    var showSettings by remember { mutableStateOf(false) }
-    if (showSettings && autoLockMs != null) {
-        SettingsDialog(autoLockMs, onAutoLockChange) { showSettings = false }
-    }
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         uri?.let { viewModel.onDocumentPicked(it.toString()) }
@@ -76,7 +70,7 @@ fun VaultsScreen(
         onOpen = { onOpen(it.id, viewModel.isOpen(it.id)) },
         onRemove = viewModel::onRemove,
         onLockAll = viewModel::onLockAll,
-        onSettings = { showSettings = true },
+        onSettings = onSettings,
     )
 }
 
@@ -199,35 +193,4 @@ private fun EmptyVaults(modifier: Modifier, onAdd: () -> Unit, onCreate: () -> U
             Text(stringResource(R.string.vaults_create_new))
         }
     }
-}
-
-@Composable
-private fun SettingsDialog(current: Long, onChange: (Long) -> Unit, onDismiss: () -> Unit) {
-    val labels = mapOf(
-        0L to R.string.autolock_immediately,
-        30_000L to R.string.autolock_30s,
-        120_000L to R.string.autolock_2m,
-        300_000L to R.string.autolock_5m,
-    )
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        confirmButton = { androidx.compose.material3.TextButton(onClick = onDismiss) { Text("OK") } },
-        title = { Text(stringResource(R.string.settings_autolock)) },
-        text = {
-            Column {
-                AUTOLOCK_OPTIONS.forEach { ms ->
-                    Row(
-                        Modifier.fillMaxWidth().selectable(selected = ms == current, onClick = { onChange(ms) }).padding(vertical = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        RadioButton(selected = ms == current, onClick = null)
-                        Spacer(Modifier.width(12.dp))
-                        Text(stringResource(labels.getValue(ms)))
-                    }
-                }
-                Spacer(Modifier.height(16.dp))
-                Text(stringResource(R.string.about_trademark), style = MaterialTheme.typography.bodySmall)
-            }
-        },
-    )
 }

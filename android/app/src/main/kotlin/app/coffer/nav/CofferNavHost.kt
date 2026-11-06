@@ -21,6 +21,8 @@ import androidx.navigation.navArgument
 import app.coffer.browser.BrowserScreen
 import app.coffer.browser.BrowserViewModel
 import app.coffer.create.CreateScreen
+import app.coffer.security.AppLock
+import app.coffer.settings.SettingsScreen
 import app.coffer.unlock.UnlockScreen
 import app.coffer.unlock.UnlockViewModel
 import app.coffer.vaults.VaultsScreen
@@ -30,6 +32,7 @@ import app.coffer.viewer.ViewerViewModel
 object Routes {
     const val VAULTS = "vaults"
     const val CREATE = "create"
+    const val SETTINGS = "settings"
     fun unlock(id: String) = "unlock/${Uri.encode(id)}"
     fun browser(id: String) = "browser/${Uri.encode(id)}"
     fun viewer(id: String, path: String) = "viewer/${Uri.encode(id)}?path=${Uri.encode(path)}"
@@ -47,6 +50,8 @@ fun NavHostController.backToVaults() {
 fun CofferNavHost(
     openIds: StateFlow<Set<String>>,
     settings: SecuritySettings,
+    appLock: AppLock,
+    biometricAvailable: Boolean,
     nav: NavHostController = rememberNavController(),
 ) {
     val open by openIds.collectAsStateWithLifecycle()
@@ -57,18 +62,18 @@ fun CofferNavHost(
         val id = entry?.arguments?.getString("id")
         if ((route.startsWith("browser") || route.startsWith("viewer")) && id !in open) nav.backToVaults()
     }
-    val autoLockMs by settings.autoLockMs.collectAsStateWithLifecycle(initialValue = null)
-    val scope = rememberCoroutineScope()
     NavHost(nav, startDestination = Routes.VAULTS) {
         composable(Routes.VAULTS) {
             VaultsScreen(
                 hiltViewModel(),
-                autoLockMs = autoLockMs,
-                onAutoLockChange = { ms -> scope.launch { settings.setAutoLockMs(ms) } },
+                onSettings = { nav.navigate(Routes.SETTINGS) },
                 onCreate = { nav.navigate(Routes.CREATE) },
             ) { id, isOpen ->
                 nav.navigate(if (isOpen) Routes.browser(id) else Routes.unlock(id))
             }
+        }
+        composable(Routes.SETTINGS) {
+            SettingsScreen(settings, appLock, biometricAvailable, onBack = { nav.popBackStack() }, onAbout = {})
         }
         composable(Routes.CREATE) {
             CreateScreen(hiltViewModel(), onBack = { nav.popBackStack() }) { vaultId ->

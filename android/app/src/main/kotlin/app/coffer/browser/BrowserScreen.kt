@@ -316,6 +316,13 @@ fun BrowserContent(state: BrowserUiState, snackbar: SnackbarHostState, actions: 
 
 @Composable
 private fun Badges(state: BrowserUiState) {
+    state.freeBytes?.let {
+        Text(
+            stringResource(R.string.browser_free, humanSize(it)),
+            Modifier.padding(horizontal = 16.dp),
+            style = MaterialTheme.typography.bodySmall,
+        )
+    }
     if (state.writable && !state.hiddenProtected) return
     Row(Modifier.padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         if (!state.writable) AssistChip(onClick = {}, label = { Text(stringResource(R.string.browser_read_only)) })
