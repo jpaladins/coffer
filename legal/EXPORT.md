@@ -19,6 +19,11 @@ Coffer implementa crittografia forte (AES, Serpent, Twofish, Camellia, Kuznyechi
 - Nella Play Console, alla domanda sull'uso di crittografia, va dichiarato che l'app usa crittografia e che rientra nell'eccezione per software pubblicamente disponibile/open source (o nell'esenzione per crittografia usata per proteggere dati dell'utente). Google richiede la conformità alle norme di esportazione degli Stati Uniti; la notifica TSU sopra ne è la base.
 - Alcuni paesi possono essere esclusi dalla distribuzione in base alle sanzioni statunitensi; Google li gestisce automaticamente.
 
+## Paesi di distribuzione (prima della produzione)
+
+- Test interno: solo Italia (e i paesi di eventuali tester).
+- Produzione: prima di scegliere i paesi, verificare le norme nazionali su distribuzione/importazione di crittografia. In particolare **Francia** (dichiarazione ANSSI per la fornitura di mezzi crittografici: verificare se si applica a software open source gratuito) e paesi con regole note sulla crittografia (es. Russia, Bielorussia, Kazakistan). I paesi sotto embargo USA sono esclusi automaticamente da Google.
+
 ## Azioni che restano all'utente (titolare della pubblicazione)
 
 1. Al momento della pubblicazione su GitHub: inviare la notifica TSU (vedi sopra) e conservare la ricevuta in questo file (data e destinatari).
