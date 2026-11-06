@@ -5,13 +5,13 @@
 //!
 //! Usage: mutate <container> <password> <manifest.json> [<hidden password to protect>]
 use coffer_crypto::Prf;
-use coffer_fs::{mount, mount_rw, Filesystem};
+use coffer_fs::{mount, mount_rw};
 use coffer_volume::{open_volume, BlockDevice, CancelToken, Credentials, FileDevice};
 use sha2::{Digest, Sha256};
 use std::process::ExitCode;
 use std::sync::Arc;
 
-#[path = "common.rs"]
+#[path = "common/mod.rs"]
 mod common;
 use common::{mutate, walk};
 

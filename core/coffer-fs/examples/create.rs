@@ -11,7 +11,7 @@ use coffer_volume::{create_volume, BlockDevice, CancelToken, CreateParams, Crede
 use std::process::ExitCode;
 use std::sync::Arc;
 
-#[path = "common.rs"]
+#[path = "common/mod.rs"]
 mod common;
 use common::{mutate, pattern, walk};
 
