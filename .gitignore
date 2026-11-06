@@ -13,3 +13,8 @@ android/.kotlin/
 android/core/native/src/main/jniLibs/
 android/core/native/src/main/kotlin/app/coffer/ffi/
 !android/app/src/androidTest/assets/*.hc
+
+# Release signing: never in the repository
+keystore.properties
+*.jks
+*.keystore

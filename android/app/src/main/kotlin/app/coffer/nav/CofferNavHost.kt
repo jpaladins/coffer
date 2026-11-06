@@ -23,6 +23,7 @@ import app.coffer.browser.BrowserViewModel
 import app.coffer.create.CreateScreen
 import app.coffer.security.AppLock
 import app.coffer.settings.SettingsScreen
+import app.coffer.about.AboutScreen
 import app.coffer.unlock.UnlockScreen
 import app.coffer.unlock.UnlockViewModel
 import app.coffer.vaults.VaultsScreen
@@ -33,6 +34,7 @@ object Routes {
     const val VAULTS = "vaults"
     const val CREATE = "create"
     const val SETTINGS = "settings"
+    const val ABOUT = "about"
     fun unlock(id: String) = "unlock/${Uri.encode(id)}"
     fun browser(id: String) = "browser/${Uri.encode(id)}"
     fun viewer(id: String, path: String) = "viewer/${Uri.encode(id)}?path=${Uri.encode(path)}"
@@ -73,7 +75,12 @@ fun CofferNavHost(
             }
         }
         composable(Routes.SETTINGS) {
-            SettingsScreen(settings, appLock, biometricAvailable, onBack = { nav.popBackStack() }, onAbout = {})
+            SettingsScreen(settings, appLock, biometricAvailable, onBack = { nav.popBackStack() }) {
+                nav.navigate(Routes.ABOUT)
+            }
+        }
+        composable(Routes.ABOUT) {
+            AboutScreen(onBack = { nav.popBackStack() })
         }
         composable(Routes.CREATE) {
             CreateScreen(hiltViewModel(), onBack = { nav.popBackStack() }) { vaultId ->

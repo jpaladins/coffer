@@ -1,0 +1,12 @@
+Coffer opens your VeraCrypt® containers on Android, without root.
+
+• Open containers with password, PIM and keyfiles: AES, Serpent, Twofish, Camellia, Kuznyechik and their cascades; SHA-512, SHA-256, Whirlpool, BLAKE2s, Streebog and Argon2id.
+• Browse, view and export files; open them with other apps without plaintext copies on disk.
+• Write: import files, create folders, rename, move and delete, on FAT and exFAT.
+• Protect a hidden volume while writing into the outer one.
+• Create new containers (FAT or exFAT) that VeraCrypt on a computer opens as usual.
+• Auto-lock, app lock with PIN or fingerprint, screenshots blocked.
+
+Private by design: no internet permission, no ads, no tracking. Free software under the GPLv3.
+
+Coffer is an independent project and is not affiliated with IDRIX. VeraCrypt® is a trademark of IDRIX.

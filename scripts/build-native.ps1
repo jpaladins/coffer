@@ -6,6 +6,11 @@ $root = Split-Path -Parent $PSScriptRoot
 . (Join-Path $PSScriptRoot 'env.ps1')
 $core = Join-Path $root 'core'
 $native = Join-Path $root 'android\core\native\src\main'
+# Reproducible native libraries: no local paths and no random build id.
+$remap = "--remap-path-prefix=$root=/coffer --remap-path-prefix=$(Join-Path $env:USERPROFILE '.cargo')=/cargo -C link-arg=-Wl,--build-id=none"
+foreach ($t in 'AARCH64_LINUX_ANDROID', 'ARMV7_LINUX_ANDROIDEABI', 'X86_64_LINUX_ANDROID') {
+    Set-Item -Path "env:CARGO_TARGET_${t}_RUSTFLAGS" -Value $remap
+}
 Push-Location $core
 try {
     cargo ndk -t arm64-v8a -t armeabi-v7a -t x86_64 -P 26 -o (Join-Path $native 'jniLibs') build --release -p coffer-ffi

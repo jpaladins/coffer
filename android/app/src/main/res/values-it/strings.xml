@@ -146,4 +146,8 @@
     <string name="unlock_remember">Ricorda con l\'impronta</string>
     <string name="unlock_remember_warning">La password verrà conservata su questo telefono, cifrata con una chiave che solo un\'impronta sblocca. Chiunque abbia un\'impronta registrata su questo telefono potrebbe aprire questo container.</string>
     <string name="browser_free">%1$s liberi</string>
+    <string name="about_version">Versione %1$s</string>
+    <string name="about_license">Software libero con licenza GNU General Public License v3.0 o successiva. Il codice sorgente è pubblico: chiunque può verificare cosa fa Coffer.</string>
+    <string name="about_privacy">Coffer non ha il permesso di accesso a internet: non raccoglie e non invia nulla. Password e chiavi restano in memoria solo finché un container è aperto.</string>
+    <string name="about_licenses">Licenze open source</string>
 </resources>

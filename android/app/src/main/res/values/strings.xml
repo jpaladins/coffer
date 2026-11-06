@@ -147,4 +147,8 @@
     <string name="unlock_remember">Remember with fingerprint</string>
     <string name="unlock_remember_warning">The password will be stored on this phone, encrypted with a key that only a fingerprint unlocks. Anyone whose fingerprint is enrolled on this phone could open this container.</string>
     <string name="browser_free">%1$s free</string>
+    <string name="about_version">Version %1$s</string>
+    <string name="about_license">Free software under the GNU General Public License v3.0 or later. The source code is public: anyone can check what Coffer does.</string>
+    <string name="about_privacy">Coffer has no internet permission: it collects nothing and sends nothing. Passwords and keys stay in memory only while a container is open.</string>
+    <string name="about_licenses">Open source licenses</string>
 </resources>
