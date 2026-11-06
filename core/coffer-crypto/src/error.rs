@@ -35,6 +35,8 @@ pub enum CofferError {
     NotEmpty(String),
     #[error("the volume is open read-only")]
     ReadOnly,
+    #[error("invalid container size: {0}")]
+    InvalidSize(String),
 }
 
 impl From<std::io::Error> for CofferError {

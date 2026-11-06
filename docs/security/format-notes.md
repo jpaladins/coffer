@@ -34,3 +34,9 @@ Raccolte **solo** dalla documentazione pubblica (`C:\Program Files\VeraCrypt\doc
 
 ## Osservazioni sul corpus
 - `VeraCrypt Format.exe /filesystem FAT` sceglie FAT16 per i container da 10 e 64 MiB. Un container FAT32 va creato più grande (in P2).
+
+## Creazione di un volume standard [oracolo, VeraCrypt 1.26.29]
+- Campi dell'header letti da container del corpus (`core/coffer-volume/examples/header_fields.rs`): versione 5, versione minima del programma 0x010B (267), flag 0, dimensione del settore 512, `encrypted_area_start` 131072, `volume_size` = `encrypted_area_size` = dimensione del file − 262144, `hidden_volume_size` 0.
+- Header principale e di backup hanno **sali diversi** (stessa master key).
+- Le aree degli header nascosti (@65536 e @S−65536) e il resto di ogni area header da 64 KiB dopo i primi 512 byte contengono byte casuali: un volume senza nascosto è indistinguibile da uno che lo contiene.
+- Un container creato da VeraCrypt ha l'area dati indistinguibile da dati casuali (formattazione completa: zeri cifrati).

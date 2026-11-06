@@ -69,6 +69,7 @@ impl From<CofferError> for FfiError {
             CofferError::AlreadyExists(path) => FfiError::AlreadyExists { path },
             CofferError::NotEmpty(path) => FfiError::NotEmpty { path },
             CofferError::ReadOnly => FfiError::ReadOnly,
+            CofferError::InvalidSize(detail) => FfiError::Unsupported { detail },
         }
     }
 }

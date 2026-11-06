@@ -2,12 +2,14 @@
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 //! VeraCrypt-compatible container layout and decrypted block device.
 
+mod create;
 mod decrypted;
 mod device;
 mod layout;
 mod open;
 
 pub use coffer_crypto::{CancelToken, CofferError, Credentials};
+pub use create::{create_volume, CreateParams, Rng, MIN_EXFAT, MIN_FAT};
 pub use decrypted::{OpenedVolume, VolumeKind};
 pub use device::{BlockDevice, FileDevice, MemDevice};
 pub use layout::*;
