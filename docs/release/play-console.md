@@ -36,13 +36,13 @@ Poi il pacchetto da caricare (AAB) lo preparo io: `gradlew :app:bundleRelease`.
   - icona 512×512 PNG;
   - grafica in evidenza 1024×500;
   - almeno 2 screenshot del telefono (formato 9:16).
-- **Informativa sulla privacy:** serve un **URL pubblico**. Il testo è pronto in `docs/privacy.md`, ma va pubblicato su una pagina pubblica, per esempio GitHub Pages quando il repository diventerà pubblico, o un altro sito tuo.
+- **Informativa sulla privacy:** pubblicata su **https://jpaladins.github.io/coffer-privacy/** (repository pubblico `jpaladins/coffer-privacy`, solo la pagina; sorgente in `docs/site/privacy/index.html`: dopo ogni modifica va copiata lì). In origine serviva un **URL pubblico**. Il testo è pronto in `docs/privacy.md`, ma va pubblicato su una pagina pubblica, per esempio GitHub Pages quando il repository diventerà pubblico, o un altro sito tuo.
 
 ## 5. Contenuti dell'app (sezione "Norme" / "Contenuti dell'app")
 
 | Modulo | Risposta |
 |---|---|
-| Norme sulla privacy | URL dell'informativa (vedi sopra) |
+| Norme sulla privacy | https://jpaladins.github.io/coffer-privacy/ |
 | Annunci | **No**, l'app non contiene annunci |
 | Accesso all'app | Tutte le funzionalità sono disponibili senza credenziali né account |
 | Classificazione dei contenuti (questionario IARC) | Categoria "Utilità / produttività"; nessuna violenza, contenuto sessuale, linguaggio, sostanze, gioco d'azzardo; nessuna interazione tra utenti; nessuna condivisione della posizione; nessun acquisto digitale |
