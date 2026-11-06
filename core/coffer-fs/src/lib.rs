@@ -6,6 +6,28 @@ pub use coffer_vfs::{CofferError, DirEntry, Filesystem, FsKind, FsStats};
 use coffer_volume::BlockDevice;
 use std::sync::Arc;
 
+/// Filesystem to create in a new volume.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum FsChoice {
+    Fat,
+    ExFat,
+}
+
+/// Formats a new (decrypted) volume. FAT needs at least `MIN_FAT` bytes of
+/// container, exFAT `MIN_EXFAT` (checked by the caller against the
+/// container size; this checks the volume itself can hold the filesystem).
+pub fn format(
+    volume: Arc<dyn BlockDevice>,
+    fs: FsChoice,
+    label: &str,
+    serial: u32,
+) -> Result<(), CofferError> {
+    match fs {
+        FsChoice::Fat => coffer_fat::format(volume, label, serial),
+        FsChoice::ExFat => coffer_exfat::format(volume.as_ref(), label, serial),
+    }
+}
+
 /// Detects the filesystem of `volume` (a decrypted volume) and mounts it
 /// read-only.
 pub fn mount(volume: Arc<dyn BlockDevice>) -> Result<Box<dyn Filesystem>, CofferError> {

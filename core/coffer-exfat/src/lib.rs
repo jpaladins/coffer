@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
-//! Read-only exFAT, written from the Microsoft exFAT specification.
+//! exFAT, written from the Microsoft exFAT specification.
 
 mod boot;
 mod dir;
 mod fat;
+mod format;
 mod fs;
 mod time;
 mod write;
@@ -12,5 +13,6 @@ mod write;
 pub use boot::{parse_boot, BootInfo};
 pub use dir::{parse_dir, DirLoc, ExEntry};
 pub use fat::{chain_for_len, chain_until_end};
+pub use format::{default_cluster_size, format, table_checksum, UPCASE_CHECKSUM};
 pub use fs::ExFatFs;
 pub use write::name_hash;
