@@ -46,7 +46,7 @@ Poi il pacchetto da caricare (AAB) lo preparo io: `gradlew :app:bundleRelease`.
 | Annunci | **No**, l'app non contiene annunci |
 | Accesso all'app | Tutte le funzionalità sono disponibili senza credenziali né account |
 | Classificazione dei contenuti (questionario IARC) | Categoria "Utilità / produttività"; nessuna violenza, contenuto sessuale, linguaggio, sostanze, gioco d'azzardo; nessuna interazione tra utenti; nessuna condivisione della posizione; nessun acquisto digitale |
-| Pubblico di destinazione | **18+** (evita i requisiti del programma Famiglie; l'app non è pensata per bambini) |
+| Pubblico di destinazione | **13-15, 16-17, 18+** (non sotto i 13 anni: evita le norme Famiglie; solo 18+ può limitare la disponibilità). "Può attirare i bambini?": No |
 | App di notizie | No |
 | App governativa | No |
 | Funzionalità finanziarie | Nessuna |
