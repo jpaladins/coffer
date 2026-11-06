@@ -30,6 +30,8 @@ pub struct ExFatFs {
     pub(crate) chain_cache: Mutex<Vec<CachedChain>>,
     /// Resolved paths, so each read does not re-read every parent directory.
     pub(crate) path_cache: Mutex<HashMap<String, ExEntry>>,
+    /// VolumeDirty was set when the volume was opened.
+    pub(crate) was_dirty: bool,
     /// Writes are exclusive: a reader running during a write could read a
     /// half-updated directory and put a stale entry into `path_cache`,
     /// which the next write would then trust.
@@ -56,9 +58,11 @@ impl ExFatFs {
                 "exFAT: VolumeLength exceeds the volume".into(),
             ));
         }
+        let was_dirty = u16::from_le_bytes([region[106], region[107]]) & 0x0002 != 0;
         Ok(Self {
             dev,
             boot,
+            was_dirty,
             writer: None,
             chain_cache: Mutex::new(Vec::new()),
             path_cache: Mutex::new(HashMap::new()),
@@ -298,6 +302,10 @@ impl Filesystem for ExFatFs {
 
     fn is_writable(&self) -> bool {
         self.writer.is_some()
+    }
+
+    fn was_dirty(&self) -> bool {
+        self.was_dirty
     }
 
     fn create_file(&self, path: &str) -> Result<(), CofferError> {

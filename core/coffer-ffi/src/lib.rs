@@ -185,6 +185,8 @@ pub struct FfiVolumeInfo {
     pub size: u64,
     pub writable: bool,
     pub hidden_protected: bool,
+    /// Not cleanly closed last time (see `Filesystem::was_dirty`).
+    pub was_dirty: bool,
 }
 
 impl From<coffer_vfs::DirEntry> for FfiEntry {
@@ -201,7 +203,8 @@ impl From<coffer_vfs::DirEntry> for FfiEntry {
 /// An unlocked volume with its mounted filesystem.
 #[derive(uniffi::Object)]
 pub struct FfiVault {
-    info: FfiVolumeInfo,
+    info: Mutex<FfiVolumeInfo>,
+    vol: Arc<coffer_volume::OpenedVolume>,
     fs: Mutex<Option<Arc<dyn Filesystem>>>,
 }
 
@@ -218,7 +221,20 @@ impl FfiVault {
 #[uniffi::export]
 impl FfiVault {
     pub fn info(&self) -> FfiVolumeInfo {
-        self.info.clone()
+        self.info.lock().unwrap_or_else(|p| p.into_inner()).clone()
+    }
+
+    /// Remounts the filesystem read-only, keeping the unlocked volume (no
+    /// password needed). Used when the volume was not cleanly closed.
+    pub fn make_read_only(&self) -> Result<(), FfiError> {
+        let mut slot = self.fs.lock().unwrap_or_else(|p| p.into_inner());
+        if slot.is_none() {
+            return Err(FfiError::Closed);
+        }
+        let ro: Arc<dyn Filesystem> = Arc::from(coffer_fs::mount(self.vol.clone())?);
+        *slot = Some(ro);
+        self.info.lock().unwrap_or_else(|p| p.into_inner()).writable = false;
+        Ok(())
     }
 
     pub fn list(&self, path: String) -> Result<Vec<FfiEntry>, FfiError> {
@@ -385,12 +401,13 @@ fn vault_from(
         vol.len(),
     );
     let fs: Arc<dyn Filesystem> = Arc::from(if writable {
-        coffer_fs::mount_rw(vol)?
+        coffer_fs::mount_rw(vol.clone())?
     } else {
-        coffer_fs::mount(vol)?
+        coffer_fs::mount(vol.clone())?
     });
     Ok(Arc::new(FfiVault {
-        info: FfiVolumeInfo {
+        vol,
+        info: Mutex::new(FfiVolumeInfo {
             cipher: info_base.0,
             prf: info_base.1,
             hidden: info_base.2,
@@ -399,7 +416,8 @@ fn vault_from(
             size: info_base.4,
             writable: fs.is_writable(),
             hidden_protected,
-        },
+            was_dirty: fs.was_dirty(),
+        }),
         fs: Mutex::new(Some(fs)),
     }))
 }

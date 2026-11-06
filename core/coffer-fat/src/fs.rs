@@ -30,6 +30,8 @@ pub struct FatFs {
     /// directory state: two writers (or a reader during a write) would work
     /// from stale copies and cross-link clusters. Writes are exclusive.
     ops: RwLock<()>,
+    /// The FAT "clean shutdown" bit was clear when the volume was opened.
+    was_dirty: bool,
 }
 
 /// 8192 sectors = 4 MiB of decrypted metadata and small-cluster cache.
@@ -72,6 +74,7 @@ impl FatFs {
     fn open_with(dev: Arc<dyn BlockDevice>, writable: bool) -> Result<Self, CofferError> {
         let cache = Arc::new(Mutex::new(SectorCache::new(CACHE_SECTORS)));
         let fs = Self::mount(&dev, META_BUDGET, &cache, false)?;
+        let was_dirty = fs.read_status_flags().map(|f| f.dirty()).unwrap_or(false);
         let kind = match fs.fat_type() {
             fatfs::FatType::Fat12 => FsKind::Fat12,
             fatfs::FatType::Fat16 => FsKind::Fat16,
@@ -83,6 +86,7 @@ impl FatFs {
             cache,
             writable,
             ops: RwLock::new(()),
+            was_dirty,
         })
     }
 
@@ -276,6 +280,10 @@ impl Filesystem for FatFs {
 
     fn is_writable(&self) -> bool {
         self.writable
+    }
+
+    fn was_dirty(&self) -> bool {
+        self.was_dirty
     }
 
     fn create_file(&self, path: &str) -> Result<(), CofferError> {

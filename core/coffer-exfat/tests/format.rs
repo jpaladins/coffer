@@ -112,3 +112,19 @@ fn too_small_is_rejected() {
     let dev: Arc<dyn BlockDevice> = Arc::new(MemDevice::new(vec![0u8; 64 * 1024]));
     assert!(format(dev.as_ref(), "", 1).is_err());
 }
+
+#[test]
+fn unclean_close_is_reported_on_next_open() {
+    let dev = formatted(4 << 20, "");
+    assert!(!ExFatFs::open(dev.clone()).unwrap().was_dirty());
+    {
+        let fs = ExFatFs::open_rw(dev.clone()).unwrap();
+        fs.create_file("/a").unwrap(); // sets VolumeDirty; no sync = crash
+    }
+    assert!(ExFatFs::open(dev.clone()).unwrap().was_dirty());
+    // Writing and syncing does not hide the earlier unclean close.
+    let fs = ExFatFs::open_rw(dev.clone()).unwrap();
+    fs.create_file("/b").unwrap();
+    fs.sync().unwrap();
+    assert!(ExFatFs::open(dev).unwrap().was_dirty());
+}

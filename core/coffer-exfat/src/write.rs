@@ -798,7 +798,9 @@ impl ExFatFs {
         };
         let mut ws = w.lock().unwrap_or_else(|p| p.into_inner());
         self.dev.flush()?;
-        if ws.dirty_marked {
+        // A volume found dirty stays dirty: Coffer did not check or repair
+        // it, so Windows must still offer chkdsk.
+        if ws.dirty_marked && !self.was_dirty {
             self.update_volume_flags(|f| f & !VOLUME_DIRTY)?;
             self.dev.flush()?;
             ws.dirty_marked = false;

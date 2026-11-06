@@ -91,4 +91,9 @@ pub trait Filesystem: Send + Sync {
     fn is_writable(&self) -> bool {
         false
     }
+    /// The volume was not cleanly closed last time (exFAT VolumeDirty, FAT
+    /// "clean shutdown" bit): it may need a check before writing.
+    fn was_dirty(&self) -> bool {
+        false
+    }
 }

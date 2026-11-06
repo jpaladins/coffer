@@ -389,3 +389,33 @@ fn lists_ciphers_and_prfs() {
     assert_eq!(coffer_ffi::list_ciphers()[0], "AES");
     assert!(coffer_ffi::list_prfs().contains(&"Argon2id".to_string()));
 }
+
+#[test]
+fn unclean_volume_is_flagged_and_can_drop_to_read_only() {
+    let dev = empty_device(4 << 20);
+    let p = Arc::new(Progress(Mutex::new(Vec::new()), None));
+    let mut b = blob(b"new-pass", &[]);
+    let v = coffer_ffi::create_device_secret(
+        dev.clone(),
+        &mut b,
+        create_opts("exFAT", true, 4 << 20),
+        p,
+        FfiCancel::new(),
+    )
+    .unwrap();
+    assert!(!v.info().was_dirty);
+    v.create_file("/x".into()).unwrap();
+    drop(v); // no lock(): like the app being killed mid-session
+    let mut b = blob(b"new-pass", &[]);
+    let v =
+        coffer_ffi::open_device_secret(dev, &mut b, opts(), true, None, FfiCancel::new()).unwrap();
+    assert!(v.info().was_dirty);
+    assert!(v.info().writable);
+    v.make_read_only().unwrap();
+    assert!(!v.info().writable);
+    assert!(matches!(
+        v.create_file("/y".into()),
+        Err(FfiError::ReadOnly)
+    ));
+    assert_eq!(v.list("/".into()).unwrap().len(), 1);
+}
