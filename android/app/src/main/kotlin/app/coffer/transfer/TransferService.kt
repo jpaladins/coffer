@@ -80,6 +80,8 @@ class TransferService : Service() {
             .setOnlyAlertOnce(true)
             .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
             .setSilent(true)
+            // A user-started import: show it at once (Android otherwise waits ~10 s).
+            .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
             .build()
     }
 

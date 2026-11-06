@@ -1,7 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package app.coffer.browser
 
+import android.Manifest
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Build
+import androidx.core.content.ContextCompat
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -131,6 +135,13 @@ fun BrowserScreen(viewModel: BrowserViewModel, onExit: () -> Unit, onOpenFile: (
         viewModel.onPickerClosed()
         viewModel.onImport(uris.map { it.toString() })
     }
+    // Android 13+: without this permission the import's progress notification
+    // is hidden. Asked once, right before the first import; the import runs
+    // whatever the answer.
+    val notificationPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
+        viewModel.onPickerOpening()
+        importPicker.launch(arrayOf("*/*"))
+    }
     BackHandler(onBack = viewModel::onUp)
     val actions = remember(viewModel) {
         object : BrowserActions {
@@ -152,8 +163,15 @@ fun BrowserScreen(viewModel: BrowserViewModel, onExit: () -> Unit, onOpenFile: (
                 runCatching { context.startActivity(Intent.createChooser(view, entry.name)) }
             }
             override fun onImport() {
-                viewModel.onPickerOpening()
-                importPicker.launch(arrayOf("*/*"))
+                val needsAsk = Build.VERSION.SDK_INT >= 33 &&
+                    ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) !=
+                    PackageManager.PERMISSION_GRANTED
+                if (needsAsk) {
+                    notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+                } else {
+                    viewModel.onPickerOpening()
+                    importPicker.launch(arrayOf("*/*"))
+                }
             }
             override fun onCancelImport() = viewModel.onCancelImport()
             override fun onNewFolder(name: String) = viewModel.onNewFolder(name)

@@ -5,6 +5,8 @@
 
     <!-- Keeps long imports alive when the user leaves the app. -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <!-- Android 13+: shows the import progress notification. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
 
     <application

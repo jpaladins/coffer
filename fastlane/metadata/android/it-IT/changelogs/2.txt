@@ -1,0 +1,1 @@
+Notifica di avanzamento visibile su Android 13+, icone per foto e documenti.
