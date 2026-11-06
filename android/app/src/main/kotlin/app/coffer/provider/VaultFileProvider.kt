@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package app.coffer.provider
 
+import app.coffer.BuildConfig
 import android.content.ContentProvider
 import android.content.ContentValues
 import android.database.Cursor
@@ -28,7 +29,7 @@ import java.io.FileNotFoundException
  * copy on disk: every read is served from the vault through a proxy file
  * descriptor (spec §5.3). Once the vault is locked, reads fail with EIO.
  *
- * URI: content://app.coffer.files/<session token>/<path segments...>. The
+ * URI: content://com.coffer.app.files/<session token>/<path segments...>. The
  * token is random per unlock, so a grant dies with the session; grants are
  * also revoked explicitly when the session is locked (CofferApp).
  */
@@ -95,7 +96,7 @@ class VaultFileProvider : ContentProvider() {
     override fun update(uri: Uri, values: ContentValues?, selection: String?, args: Array<out String>?) = 0
 
     companion object {
-        const val AUTHORITY = "app.coffer.files"
+        const val AUTHORITY = BuildConfig.APPLICATION_ID + ".files"
 
         fun sessionRoot(token: String): Uri = Uri.Builder()
             .scheme("content")

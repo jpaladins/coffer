@@ -20,4 +20,4 @@ keystore.properties
 *.keystore
 
 # Signed release packages (built locally)
-release/
+/release/

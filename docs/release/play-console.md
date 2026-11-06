@@ -25,7 +25,7 @@ Poi il pacchetto da caricare (AAB) lo preparo io: `gradlew :app:bundleRelease`.
 | Lingua predefinita | Italiano (it-IT); aggiungi Inglese (en-US) |
 | App o gioco | App |
 | Gratuita o a pagamento | Gratuita (non si può più rendere a pagamento in seguito) |
-| ID pacchetto | `app.coffer` (fissato dal primo caricamento, non modificabile) |
+| ID pacchetto | `com.coffer.app` (fissato dal primo caricamento, non modificabile) |
 
 ## 4. Scheda dello store
 

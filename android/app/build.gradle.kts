@@ -14,7 +14,8 @@ android {
     namespace = "app.coffer"
     compileSdk = 37
     defaultConfig {
-        applicationId = "app.coffer"
+        // Store id (fixed forever after the first upload); the code package stays app.coffer.
+        applicationId = "com.coffer.app"
         minSdk = 26
         targetSdk = 36
         versionCode = 1

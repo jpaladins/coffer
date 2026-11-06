@@ -31,7 +31,7 @@
         <!-- Serves files inside unlocked vaults to "Open with" through proxy fds (no plaintext on disk). -->
         <provider
             android:name=".provider.VaultFileProvider"
-            android:authorities="app.coffer.files"
+            android:authorities="${applicationId}.files"
             android:exported="false"
             android:grantUriPermissions="true" />
 
