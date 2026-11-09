@@ -13,6 +13,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.ui.unit.IntOffset
 import app.coffer.ui.components.rememberAnimationsEnabled
 import app.coffer.onboarding.OnboardingExit
+import app.coffer.settings.UiPrefs
 import app.coffer.onboarding.OnboardingScreen
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.Composable
@@ -75,6 +76,7 @@ fun CofferNavHost(
     nav: NavHostController = rememberNavController(),
     startDestination: String = Routes.VAULTS,
     onOnboardingDone: () -> Unit = {},
+    uiPrefs: UiPrefs? = null,
 ) {
     val open by openIds.collectAsStateWithLifecycle()
     val entry by nav.currentBackStackEntryAsState()
@@ -118,7 +120,7 @@ fun CofferNavHost(
             }
         }
         composable(Routes.SETTINGS) {
-            SettingsScreen(settings, appLock, biometricAvailable, onBack = { nav.popBackStack() }) {
+            SettingsScreen(settings, appLock, biometricAvailable, onBack = { nav.popBackStack() }, uiPrefs = uiPrefs) {
                 nav.navigate(Routes.ABOUT)
             }
         }

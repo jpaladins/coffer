@@ -3,6 +3,7 @@ package app.coffer.ui.components
 
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.vector.addPathNodes
 import androidx.compose.ui.unit.dp
@@ -33,5 +34,23 @@ object CofferIcons {
     val Download by lazy { glyph("file_download", "M19,9h-4V3H9v6H5l7,7 7,-7zM5,18v2h14v-2H5z") }
     val Upload by lazy { glyph("file_upload", "M9,16h6v-6h4l-7,-7 -7,7h4zM5,18h14v2H5z") }
     val Backspace by lazy { glyph("backspace", "M22,3H7c-0.69,0 -1.23,0.35 -1.59,0.88L0,12l5.41,8.11c0.36,0.53 0.9,0.89 1.59,0.89h15c1.1,0 2,-0.9 2,-2V5c0,-1.1 -0.9,-2 -2,-2zM19,15.59L17.59,17 14,13.41 10.41,17 9,15.59 12.59,12 9,8.41 10.41,7 14,10.59 17.59,7 19,8.41 15.41,12 19,15.59z") }
+    /** Drawn with strokes: concentric ridges like a fingertip. */
+    val Fingerprint by lazy {
+        ImageVector.Builder("fingerprint", 24.dp, 24.dp, 24f, 24f).apply {
+            listOf(
+                "M5,11a7,7 0 0,1 14,0v2",
+                "M8,12a4,4 0 0,1 8,0v3a6,6 0 0,1 -1,3",
+                "M12,11v5",
+                "M5,14v1a7,7 0 0,0 3,5.5",
+            ).forEach {
+                addPath(
+                    pathData = addPathNodes(it),
+                    stroke = SolidColor(Color.Black),
+                    strokeLineWidth = 1.8f,
+                    strokeLineCap = StrokeCap.Round,
+                )
+            }
+        }.build()
+    }
     val Storage by lazy { glyph("storage", "M2,20h20v-4H2v4zM4,17h2v2H4v-2zM2,4v4h20V4H2zM6,7H4V5h2v2zM2,14h20v-4H2v4zM4,11h2v2H4v-2z") }
 }

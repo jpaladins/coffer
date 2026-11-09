@@ -101,6 +101,7 @@ class MainActivity : FragmentActivity() {
                             sessions.openIds, settings, appLock, remembered.isAvailable(), nav,
                             startDestination = start,
                             onOnboardingDone = { lifecycleScope.launch { uiPrefs.setOnboardingDone() } },
+                            uiPrefs = uiPrefs,
                         )
                     }
                 }

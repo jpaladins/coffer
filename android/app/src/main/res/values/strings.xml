@@ -228,4 +228,13 @@
     <string name="create_remove_keyfile">Remove %1$s</string>
     <string name="create_strength_label">Password strength: %1$s</string>
     <string name="create_none">None</string>
+    <string name="viewer_image">Image %1$s, double tap to zoom</string>
+    <string name="settings_section_security">Security</string>
+    <string name="settings_section_privacy">Privacy</string>
+    <string name="settings_section_info">Information</string>
+    <string name="settings_remember_access">Remember last access</string>
+    <string name="settings_remember_access_help">Shows when each container was last opened. Saved only on this phone; turning it off deletes the saved times.</string>
+    <string name="settings_about_summary">Version, licenses, source code</string>
+    <string name="lock_delete">Delete</string>
+    <string name="lock_digits">%1$d digits entered</string>
 </resources>

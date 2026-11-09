@@ -223,4 +223,13 @@
     <string name="create_remove_keyfile">Rimuovi %1$s</string>
     <string name="create_strength_label">Robustezza della password: %1$s</string>
     <string name="create_none">Nessuno</string>
+    <string name="viewer_image">Immagine %1$s, tocca due volte per ingrandire</string>
+    <string name="settings_section_security">Sicurezza</string>
+    <string name="settings_section_privacy">Privacy</string>
+    <string name="settings_section_info">Informazioni</string>
+    <string name="settings_remember_access">Ricorda l\'ultimo accesso</string>
+    <string name="settings_remember_access_help">Mostra quando hai aperto ogni container l\'ultima volta. Salvato solo su questo telefono; disattivandolo i dati salvati vengono cancellati.</string>
+    <string name="settings_about_summary">Versione, licenze, codice sorgente</string>
+    <string name="lock_delete">Cancella</string>
+    <string name="lock_digits">%1$d cifre inserite</string>
 </resources>

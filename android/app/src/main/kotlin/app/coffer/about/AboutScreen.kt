@@ -1,6 +1,17 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package app.coffer.about
 
+import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Surface
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.text.style.TextAlign
+import app.coffer.ui.components.CofferTopBar
+import app.coffer.ui.theme.CofferRadii
+import app.coffer.ui.theme.TabularNums
+
 import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
 import androidx.compose.foundation.Image
@@ -53,35 +64,54 @@ fun AboutScreen(onBack: () -> Unit) {
     val licenses = remember(showLicenses) {
         if (showLicenses) runCatching { context.assets.open("third_party.md").bufferedReader().readText() }.getOrDefault("") else ""
     }
+    val scroll = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
     Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text(stringResource(R.string.about_title)) },
-                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null) } },
-            )
-        },
+        modifier = Modifier.nestedScroll(scroll.nestedScrollConnection),
+        topBar = { CofferTopBar(stringResource(R.string.about_title), scroll, onBack) },
     ) { padding ->
         Column(
-            Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(24.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
+            Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            CofferMark(size = 72.dp)
-            Text(stringResource(R.string.app_name), style = MaterialTheme.typography.headlineSmall)
-            Text(stringResource(R.string.about_version, BuildConfig.VERSION_NAME))
-            Text(stringResource(R.string.tagline), style = MaterialTheme.typography.bodyMedium)
-            HorizontalDivider()
-            Text(stringResource(R.string.about_license), style = MaterialTheme.typography.bodyMedium)
-            Text(stringResource(R.string.about_privacy), style = MaterialTheme.typography.bodyMedium)
-            Text(stringResource(R.string.about_trademark), style = MaterialTheme.typography.bodySmall)
-            HorizontalDivider()
-            DeveloperCredit()
-            HorizontalDivider()
-            TextButton(onClick = { showLicenses = !showLicenses }) { Text(stringResource(R.string.about_licenses)) }
-            if (showLicenses) {
-                Text(licenses, fontFamily = FontFamily.Monospace, style = MaterialTheme.typography.bodySmall)
+            InfoCard(Alignment.CenterHorizontally) {
+                CofferMark(size = 72.dp)
+                Text(stringResource(R.string.app_name), style = MaterialTheme.typography.headlineSmall)
+                Text(
+                    stringResource(R.string.about_version, BuildConfig.VERSION_NAME),
+                    style = MaterialTheme.typography.bodyMedium.merge(TabularNums),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Text(stringResource(R.string.tagline), style = MaterialTheme.typography.bodyMedium, textAlign = TextAlign.Center)
+            }
+            InfoCard {
+                Text(stringResource(R.string.about_license), style = MaterialTheme.typography.bodyMedium)
+                Text(stringResource(R.string.about_privacy), style = MaterialTheme.typography.bodyMedium)
+                Text(
+                    stringResource(R.string.about_trademark),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            InfoCard(Alignment.CenterHorizontally) { DeveloperCredit() }
+            InfoCard {
+                TextButton(onClick = { showLicenses = !showLicenses }) { Text(stringResource(R.string.about_licenses)) }
+                if (showLicenses) {
+                    Text(licenses, fontFamily = FontFamily.Monospace, style = MaterialTheme.typography.bodySmall)
+                }
             }
         }
+    }
+}
+
+@Composable
+private fun InfoCard(align: Alignment.Horizontal = Alignment.Start, content: @Composable ColumnScope.() -> Unit) {
+    Surface(color = MaterialTheme.colorScheme.surfaceContainerLow, shape = RoundedCornerShape(CofferRadii.card)) {
+        Column(
+            Modifier.fillMaxWidth().padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+            horizontalAlignment = align,
+            content = content,
+        )
     }
 }
 
