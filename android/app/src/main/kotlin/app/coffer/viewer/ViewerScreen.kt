@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package app.coffer.viewer
 
-import android.app.Activity
+import androidx.activity.compose.LocalActivity
 import android.graphics.BitmapFactory
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
@@ -40,16 +40,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
-import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
@@ -63,11 +60,12 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.coffer.R
+import app.coffer.ui.theme.ViewerColors
 import app.coffer.ui.userMessage
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-private val ViewerText = Color(0xFFE6E6E6)
+private val ViewerText = ViewerColors.text
 
 @Composable
 fun ViewerScreen(viewModel: ViewerViewModel, onBack: () -> Unit) {
@@ -81,7 +79,7 @@ fun ViewerScreen(viewModel: ViewerViewModel, onBack: () -> Unit) {
 fun ViewerContentView(state: ViewerUiState, onBack: () -> Unit) {
     var chrome by remember { mutableStateOf(true) }
     SystemBars(visible = chrome)
-    Box(Modifier.fillMaxSize().background(Color.Black)) {
+    Box(Modifier.fillMaxSize().background(ViewerColors.background)) {
         when (val c = state.content) {
             ViewerContent.Loading -> LoadingIndicator(Modifier.align(Alignment.Center))
             is ViewerContent.Image -> DecodedImage(c.bytes, state.name) { chrome = !chrome }
@@ -107,9 +105,9 @@ fun ViewerContentView(state: ViewerUiState, onBack: () -> Unit) {
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color.Black.copy(alpha = 0.6f),
-                    titleContentColor = Color.White,
-                    navigationIconContentColor = Color.White,
+                    containerColor = ViewerColors.scrim,
+                    titleContentColor = ViewerColors.content,
+                    navigationIconContentColor = ViewerColors.content,
                 ),
             )
         }
@@ -120,7 +118,7 @@ fun ViewerContentView(state: ViewerUiState, onBack: () -> Unit) {
 @Composable
 private fun SystemBars(visible: Boolean) {
     val view = LocalView.current
-    val window = (LocalContext.current as? Activity)?.window ?: return
+    val window = LocalActivity.current?.window ?: return
     DisposableEffect(visible) {
         val controller = WindowCompat.getInsetsController(window, view)
         controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
@@ -141,9 +139,8 @@ private fun Message(text: String) {
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun DecodedImage(bytes: ByteArray, name: String, onTap: () -> Unit) {
-    val cfg = LocalConfiguration.current
-    val density = LocalDensity.current
-    val maxPx = with(density) { maxOf(cfg.screenWidthDp, cfg.screenHeightDp).dp.roundToPx() } * 2
+    val window = LocalWindowInfo.current.containerSize
+    val maxPx = maxOf(window.width, window.height, 1) * 2
     // Unit = still decoding, null = undecodable.
     val bitmap by produceState<Any?>(Unit, bytes) {
         value = withContext(Dispatchers.Default) {

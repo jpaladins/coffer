@@ -15,6 +15,14 @@ val CofferGreen = Color(0xFF0B3D2E)
 val CofferGold = Color(0xFFE8B04A)
 val CofferGoldLight = Color(0xFFF5D38A)
 
+/** The viewer is always dark, whatever the theme: photos read best on black. */
+object ViewerColors {
+    val background = Color.Black
+    val scrim = Color.Black.copy(alpha = 0.6f)
+    val content = Color.White
+    val text = Color(0xFFE6E6E6)
+}
+
 internal val LightColors: ColorScheme = lightColorScheme(
     primary = CofferGreen,
     onPrimary = Color.White,

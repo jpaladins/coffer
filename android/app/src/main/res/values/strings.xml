@@ -14,7 +14,6 @@
     <string name="vaults_open_badge">Open</string>
     <string name="vaults_lock_all">Lock all</string>
 
-    <string name="unlock_title">Unlock %1$s</string>
     <string name="unlock_password">Password</string>
     <string name="unlock_show_password">Show password</string>
     <string name="unlock_hide_password">Hide password</string>
@@ -189,7 +188,6 @@
     <string name="vault_free_of">%1$s free of %2$s</string>
     <string name="vault_lock">Lock</string>
     <string name="vault_details">Details</string>
-    <string name="vault_details_name">Name</string>
     <string name="vault_details_size">File size</string>
     <string name="vault_details_cipher">Encryption</string>
     <string name="vault_details_prf">Key derivation (PRF)</string>
@@ -207,11 +205,8 @@
     <string name="sort_descending">Descending</string>
     <string name="browser_view_grid">Grid view</string>
     <string name="browser_view_list">List view</string>
-    <string name="selection_count">%1$d selected</string>
     <string name="selection_clear">Clear selection</string>
     <string name="selection_all">Select all</string>
-    <string name="selection_delete_title">Delete %1$d items?</string>
-    <string name="export_many_done">%1$d files exported</string>
     <string name="export_running">Exporting…</string>
     <string name="browser_no_results">No matches in this folder</string>
     <string name="browser_empty_body">Import files with the button below.</string>
@@ -236,5 +231,20 @@
     <string name="settings_remember_access_help">Shows when each container was last opened. Saved only on this phone; turning it off deletes the saved times.</string>
     <string name="settings_about_summary">Version, licenses, source code</string>
     <string name="lock_delete">Delete</string>
-    <string name="lock_digits">%1$d digits entered</string>
+    <plurals name="selection_count">
+        <item quantity="one">%1$d selected</item>
+        <item quantity="other">%1$d selected</item>
+    </plurals>
+    <plurals name="selection_delete_title">
+        <item quantity="one">Delete %1$d item?</item>
+        <item quantity="other">Delete %1$d items?</item>
+    </plurals>
+    <plurals name="export_many_done">
+        <item quantity="one">%1$d file exported</item>
+        <item quantity="other">%1$d files exported</item>
+    </plurals>
+    <plurals name="lock_digits">
+        <item quantity="one">%1$d digit entered</item>
+        <item quantity="other">%1$d digits entered</item>
+    </plurals>
 </resources>

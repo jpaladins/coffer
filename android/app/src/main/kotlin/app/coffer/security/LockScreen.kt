@@ -46,8 +46,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.activity.compose.LocalActivity
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.liveRegion
@@ -101,7 +102,7 @@ fun authenticate(
 /** Full-screen app lock: covers everything until the PIN or a fingerprint is accepted. */
 @Composable
 fun LockScreen(appLock: AppLock, mode: AppLockMode) {
-    val activity = LocalContext.current as? FragmentActivity
+    val activity = LocalActivity.current as? FragmentActivity
     val scope = rememberCoroutineScope()
     val haptics = rememberHaptics()
     // Digits live in a CharArray, never in a String; wiped after each attempt.
@@ -162,7 +163,7 @@ fun LockScreen(appLock: AppLock, mode: AppLockMode) {
             Spacer(Modifier.height(12.dp))
             Text(title, style = MaterialTheme.typography.headlineSmall)
             Spacer(Modifier.height(16.dp))
-            val digits = stringResource(R.string.lock_digits, length)
+            val digits = pluralStringResource(R.plurals.lock_digits, length, length)
             Row(
                 Modifier.graphicsLayer { translationX = shake.value.dp.toPx() }
                     .semantics { contentDescription = digits; liveRegion = LiveRegionMode.Polite },

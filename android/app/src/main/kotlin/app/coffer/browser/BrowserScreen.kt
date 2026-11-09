@@ -71,6 +71,7 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.KeyboardCapitalization
@@ -244,7 +245,7 @@ fun BrowserScreen(viewModel: BrowserViewModel, onExit: () -> Unit, onOpenFile: (
 @Composable
 private fun effectText(e: BrowserEffect): String = when (e) {
     is BrowserEffect.Exported -> stringResource(R.string.export_done, e.name)
-    is BrowserEffect.ExportedMany -> stringResource(R.string.export_many_done, e.count)
+    is BrowserEffect.ExportedMany -> pluralStringResource(R.plurals.export_many_done, e.count, e.count)
     is BrowserEffect.ExportFailed -> stringResource(R.string.export_failed, e.error.userMessage())
     is BrowserEffect.Failed -> e.error.userMessage()
     is BrowserEffect.Imported -> importText(e.result)
@@ -411,7 +412,7 @@ fun BrowserContent(state: BrowserUiState, snackbar: SnackbarHostState, actions: 
             dialog = null
             actions.onDelete(d.entry)
         }
-        is Dialog.DeleteSelected -> DeleteDialog(stringResource(R.string.selection_delete_title, d.count), { dialog = null }) {
+        is Dialog.DeleteSelected -> DeleteDialog(pluralStringResource(R.plurals.selection_delete_title, d.count, d.count), { dialog = null }) {
             dialog = null
             actions.onDeleteSelected()
         }
@@ -608,5 +609,5 @@ fun humanSize(bytes: Long): String {
     var v = bytes.toDouble()
     var i = 0
     while (v >= 1024 && i < units.lastIndex) { v /= 1024; i++ }
-    return if (i == 0) "$bytes B" else String.format("%.1f %s", v, units[i])
+    return if (i == 0) "$bytes B" else String.format(java.util.Locale.getDefault(), "%.1f %s", v, units[i])
 }

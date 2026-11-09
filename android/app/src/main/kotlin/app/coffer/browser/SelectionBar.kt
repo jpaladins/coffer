@@ -13,6 +13,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import app.coffer.R
 import app.coffer.ui.components.CofferIcons
@@ -31,7 +32,7 @@ fun SelectionBar(
     onDelete: () -> Unit,
 ) {
     TopAppBar(
-        title = { Text(stringResource(R.string.selection_count, count), style = MaterialTheme.typography.titleLarge.merge(TabularNums)) },
+        title = { Text(pluralStringResource(R.plurals.selection_count, count, count), style = MaterialTheme.typography.titleLarge.merge(TabularNums)) },
         navigationIcon = {
             IconButton(onClick = onClear) { Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.selection_clear)) }
         },

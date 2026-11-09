@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package app.coffer.unlock
 
+import androidx.activity.compose.LocalActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
@@ -100,7 +101,7 @@ private val Pill = RoundedCornerShape(CofferRadii.field)
 @Composable
 fun UnlockScreen(viewModel: UnlockViewModel, onBack: () -> Unit, onUnlocked: (String) -> Unit) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
-    val activity = LocalContext.current as? FragmentActivity
+    val activity = LocalActivity.current as? FragmentActivity
     val scope = rememberCoroutineScope()
     val haptics = rememberHaptics()
     var rememberChecked by remember { mutableStateOf(false) }

@@ -4,6 +4,7 @@ package app.coffer.platform
 import android.content.ContentResolver
 import android.content.Intent
 import android.net.Uri
+import androidx.core.net.toUri
 import android.provider.DocumentsContract
 import android.system.Os
 import android.provider.OpenableColumns
@@ -75,7 +76,7 @@ class ContentResolverAccess(private val resolver: ContentResolver) : FdOpener, D
     }.getOrNull()
 
     override fun fileSize(uri: String): Long? = runCatching {
-        resolver.query(Uri.parse(uri), arrayOf(OpenableColumns.SIZE), null, null, null)?.use {
+        resolver.query(uri.toUri(), arrayOf(OpenableColumns.SIZE), null, null, null)?.use {
             if (it.moveToFirst() && !it.isNull(0)) it.getLong(0) else null
         }
     }.getOrNull()

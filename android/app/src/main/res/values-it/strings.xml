@@ -13,7 +13,6 @@
     <string name="vaults_open_badge">Aperto</string>
     <string name="vaults_lock_all">Blocca tutto</string>
 
-    <string name="unlock_title">Sblocca %1$s</string>
     <string name="unlock_password">Password</string>
     <string name="unlock_show_password">Mostra password</string>
     <string name="unlock_hide_password">Nascondi password</string>
@@ -167,14 +166,17 @@
     <string name="onb3_body">Aggiungi un container che hai già oppure creane uno nuovo. Coffer non lo copia mai.</string>
     <plurals name="time_minutes_ago">
         <item quantity="one">%d minuto fa</item>
+        <item quantity="many">%d minuti fa</item>
         <item quantity="other">%d minuti fa</item>
     </plurals>
     <plurals name="time_hours_ago">
         <item quantity="one">%d ora fa</item>
+        <item quantity="many">%d ore fa</item>
         <item quantity="other">%d ore fa</item>
     </plurals>
     <plurals name="time_days_ago">
         <item quantity="one">%d giorno fa</item>
+        <item quantity="many">%d giorni fa</item>
         <item quantity="other">%d giorni fa</item>
     </plurals>
     <string name="time_now">adesso</string>
@@ -184,7 +186,6 @@
     <string name="vault_free_of">%1$s liberi di %2$s</string>
     <string name="vault_lock">Blocca</string>
     <string name="vault_details">Dettagli</string>
-    <string name="vault_details_name">Nome</string>
     <string name="vault_details_size">Dimensione del file</string>
     <string name="vault_details_cipher">Cifratura</string>
     <string name="vault_details_prf">Derivazione della chiave (PRF)</string>
@@ -202,11 +203,8 @@
     <string name="sort_descending">Decrescente</string>
     <string name="browser_view_grid">Vista a griglia</string>
     <string name="browser_view_list">Vista a elenco</string>
-    <string name="selection_count">%1$d selezionati</string>
     <string name="selection_clear">Annulla selezione</string>
     <string name="selection_all">Seleziona tutto</string>
-    <string name="selection_delete_title">Eliminare %1$d elementi?</string>
-    <string name="export_many_done">%1$d file esportati</string>
     <string name="export_running">Esportazione in corso…</string>
     <string name="browser_no_results">Nessun risultato in questa cartella</string>
     <string name="browser_empty_body">Importa file con il pulsante in basso.</string>
@@ -231,5 +229,24 @@
     <string name="settings_remember_access_help">Mostra quando hai aperto ogni container l\'ultima volta. Salvato solo su questo telefono; disattivandolo i dati salvati vengono cancellati.</string>
     <string name="settings_about_summary">Versione, licenze, codice sorgente</string>
     <string name="lock_delete">Cancella</string>
-    <string name="lock_digits">%1$d cifre inserite</string>
+    <plurals name="selection_count">
+        <item quantity="one">%1$d selezionato</item>
+        <item quantity="many">%1$d selezionati</item>
+        <item quantity="other">%1$d selezionati</item>
+    </plurals>
+    <plurals name="selection_delete_title">
+        <item quantity="one">Eliminare %1$d elemento?</item>
+        <item quantity="many">Eliminare %1$d elementi?</item>
+        <item quantity="other">Eliminare %1$d elementi?</item>
+    </plurals>
+    <plurals name="export_many_done">
+        <item quantity="one">%1$d file esportato</item>
+        <item quantity="many">%1$d file esportati</item>
+        <item quantity="other">%1$d file esportati</item>
+    </plurals>
+    <plurals name="lock_digits">
+        <item quantity="one">%1$d cifra inserita</item>
+        <item quantity="many">%1$d cifre inserite</item>
+        <item quantity="other">%1$d cifre inserite</item>
+    </plurals>
 </resources>

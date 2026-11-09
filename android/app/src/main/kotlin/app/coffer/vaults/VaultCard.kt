@@ -38,7 +38,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
@@ -155,7 +155,7 @@ private fun OpenDetails(item: VaultItem, onLock: () -> Unit) {
 
 @Composable
 private fun LastAccess(item: VaultItem, now: Long) {
-    val res = LocalContext.current.resources
+    val res = LocalResources.current
     val text = item.lastAccess?.let { stringResource(R.string.vault_last_access, relativeTime(now, it, res)) }
         ?: stringResource(R.string.vault_never_opened)
     Text(text, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
