@@ -424,6 +424,7 @@ const val THUMB_MAX_FILE = 30L shl 20
 - `android/app/build.gradle.kts`: `versionCode = 5`, `versionName = "0.0.2a"`.
 - `fastlane/metadata/android/{en-US,it-IT}/changelogs/5.txt`: nuova interfaccia, onboarding, card dei container, ricerca, ordinamento, griglia con anteprime, selezione multipla.
 - Rigenerare screenshot e grafiche dello store (`scripts/store-screens.py`, `scripts/store-graphics.py`) e aggiornare `docs/store/raw/`.
+- Informativa privacy (`docs/privacy.md`, `docs/site/privacy/index.html`, e copia nel repository pubblico `coffer-privacy`): aggiungere che l'app salva sul telefono la data dell'ultimo accesso a ogni container (disattivabile) e che le anteprime delle foto restano solo in memoria.
 - `./gradlew :app:bundleRelease` e copia in `release/coffer-0.0.2a.aab`; verificare con `keytool -printcert` la stessa impronta SHA-256 (`F4:2E:20:3B:…:AC:73`) e con `aapt2 dump badging` `versionCode='5'`.
 - `scripts/check-reproducible.ps1`: due build pulite producono lo stesso hash.
 - [ ] Commit: `build: 0.0.2a (versionCode 5)`, poi push.
