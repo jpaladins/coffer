@@ -14,4 +14,5 @@ interface AppEntryPoint {
     fun sessions(): SessionManager
     fun exporter(): Exporter
     fun settings(): app.coffer.security.SecuritySettings
+    fun thumbnails(): app.coffer.browser.ThumbnailLoader
 }

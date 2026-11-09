@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
@@ -69,7 +70,12 @@ fun FileTile(
                     )
                 }
                 if (!selecting) {
-                    Box(Modifier.align(Alignment.TopEnd)) { EntryMenu(e, writable, actions, onRename, onDelete) }
+                    // A soft disc keeps the menu readable over photos.
+                    Surface(
+                        Modifier.align(Alignment.TopEnd).padding(4.dp),
+                        shape = CircleShape,
+                        color = c.surface.copy(alpha = 0.72f),
+                    ) { EntryMenu(e, writable, actions, onRename, onDelete) }
                 }
             }
             Text(

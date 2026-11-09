@@ -17,6 +17,8 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -235,7 +237,8 @@ fun BrowserScreen(viewModel: BrowserViewModel, onExit: () -> Unit, onOpenFile: (
             }
         }
     }
-    BrowserContent(state, snackbar, actions)
+    val thumbs: ThumbSource = remember(viewModel) { { e, px -> viewModel.thumbnail(e, px) } }
+    BrowserContent(state, snackbar, actions, thumbs)
 }
 
 @Composable
@@ -267,7 +270,7 @@ private sealed interface Dialog {
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-fun BrowserContent(state: BrowserUiState, snackbar: SnackbarHostState, actions: BrowserActions) {
+fun BrowserContent(state: BrowserUiState, snackbar: SnackbarHostState, actions: BrowserActions, thumbs: ThumbSource? = null) {
     var dialog by remember { mutableStateOf<Dialog?>(null) }
     // Sorting and filtering run outside composition of the rows, once per change.
     val visible = remember(state.entries, state.query, state.sort) { state.visible }
@@ -373,6 +376,7 @@ fun BrowserContent(state: BrowserUiState, snackbar: SnackbarHostState, actions: 
                             e, e.name in state.selected, state.selecting, writable, actions,
                             onRename = { rename(e) }, onDelete = { delete(e) },
                             modifier = Modifier.animateItem(),
+                            preview = { Thumb(e, thumbs, 256) { FileIcon(e) } },
                         )
                     }
                 }
@@ -382,6 +386,11 @@ fun BrowserContent(state: BrowserUiState, snackbar: SnackbarHostState, actions: 
                             e, e.name in state.selected, state.selecting, writable, actions,
                             onRename = { rename(e) }, onDelete = { delete(e) },
                             modifier = Modifier.animateItem(),
+                            leading = {
+                                Box(Modifier.size(40.dp).clip(MaterialTheme.shapes.small), contentAlignment = Alignment.Center) {
+                                    Thumb(e, thumbs, 96) { FileIcon(e) }
+                                }
+                            },
                         )
                         HorizontalDivider(color = MaterialTheme.colorScheme.surfaceContainerHigh)
                     }

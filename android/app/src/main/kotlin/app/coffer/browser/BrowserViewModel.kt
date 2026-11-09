@@ -92,6 +92,7 @@ class BrowserViewModel @AssistedInject constructor(
     private val transfers: TransferManager,
     private val guard: LockGuard,
     private val uiPrefs: UiPrefs? = null,
+    private val thumbnails: ThumbnailLoader? = null,
 ) : ViewModel() {
     @AssistedFactory
     interface Factory {
@@ -161,6 +162,10 @@ class BrowserViewModel @AssistedInject constructor(
             }
         }
     }
+
+    /** Photo preview of an entry in the current folder, from memory or decoded now. */
+    suspend fun thumbnail(entry: Entry, targetPx: Int): androidx.compose.ui.graphics.ImageBitmap? =
+        thumbnails?.load(vaultId, childPath(_uiState.value.path, entry.name), entry.size, targetPx)
 
     fun onQuery(q: String) = _uiState.update { it.copy(query = q) }
 

@@ -35,6 +35,8 @@ import app.coffer.security.RememberedPasswords
 import app.coffer.security.SecuritySettings
 import app.coffer.transfer.TransferManager
 import app.coffer.settings.UiPrefs
+import app.coffer.browser.ThumbnailCache
+import app.coffer.browser.ThumbnailLoader
 
 @Module
 @InstallIn(SingletonComponent::class)
@@ -45,6 +47,13 @@ object AppModule {
 
     @Provides @Singleton
     fun vaultStore(ds: DataStore<Preferences>): VaultStore = DataStoreVaultStore(ds)
+
+    /** Previews in memory only, at most 1/8 of the app heap. */
+    @Provides @Singleton
+    fun thumbnailCache() = ThumbnailCache((Runtime.getRuntime().maxMemory() / 8).toInt())
+
+    @Provides @Singleton
+    fun thumbnailLoader(sessions: SessionManager, cache: ThumbnailCache) = ThumbnailLoader(sessions, cache, Dispatchers.IO)
 
     @Provides @Singleton
     fun uiPrefs(ds: DataStore<Preferences>) = UiPrefs(ds)

@@ -20,6 +20,7 @@ import app.coffer.security.LockGuard
 import app.coffer.transfer.TransferManager
 import app.coffer.transfer.TransferService
 import app.coffer.security.AppLock
+import app.coffer.browser.ThumbnailCache
 
 @HiltAndroidApp
 class CofferApp : Application() {
@@ -28,12 +29,15 @@ class CofferApp : Application() {
     @Inject lateinit var guard: LockGuard
     @Inject lateinit var transfers: TransferManager
     @Inject lateinit var appLock: AppLock
+    @Inject lateinit var thumbnails: ThumbnailCache
 
     override fun onCreate() {
         super.onCreate()
         // Apps that received an "Open with" grant lose it when the vault locks.
         sessions.addCloseListener { s ->
             revokeUriPermission(VaultFileProvider.sessionRoot(s.token), Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            // Previews of a locked container must not outlive it.
+            thumbnails.clear(s.ref.id)
         }
         val main = MainScope()
         val autoLock = AutoLock(main, settings::currentAutoLockMs, guard.held, sessions::closeAll)
