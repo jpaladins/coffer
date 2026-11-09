@@ -20,6 +20,8 @@ interface DocumentAccess {
     fun displayName(uri: String): String?
     /** Free bytes on the storage holding [uri], or null when unknown. */
     fun availableBytes(uri: String): Long? = null
+    /** Size of the document in bytes, if the provider reports it. */
+    fun fileSize(uri: String): Long? = null
 }
 
 class ContentResolverAccess(private val resolver: ContentResolver) : FdOpener, DocumentAccess, ImportSource {
@@ -69,6 +71,12 @@ class ContentResolverAccess(private val resolver: ContentResolver) : FdOpener, D
         resolver.openFileDescriptor(Uri.parse(uri), "r")?.use { pfd ->
             val st = Os.fstatvfs(pfd.fileDescriptor)
             st.f_bavail * st.f_frsize
+        }
+    }.getOrNull()
+
+    override fun fileSize(uri: String): Long? = runCatching {
+        resolver.query(Uri.parse(uri), arrayOf(OpenableColumns.SIZE), null, null, null)?.use {
+            if (it.moveToFirst() && !it.isNull(0)) it.getLong(0) else null
         }
     }.getOrNull()
 

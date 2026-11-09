@@ -85,6 +85,35 @@ class VaultsAndUnlockViewModelTest {
     }
 
     @Test
+    fun open_item_has_free_space_and_fs() = runTest {
+        val store = FakeStore(ref)
+        val sm = sessions(FakeNative(), store, StandardTestDispatcher(testScheduler))
+        sm.unlock(ref, app.coffer.data.UnlockRequest("secret".toCharArray(), 0, emptyList(), null), sm.newCancel())
+        val docs = FakeDocuments().apply { sizes["content://p/test.hc"] = 4096L }
+        val vm = VaultsViewModel(store, sm, docs, app.coffer.settings.UiPrefs(MemoryPrefs()), StandardTestDispatcher(testScheduler))
+        val item = vm.uiState.first { s -> s.vaults.any { it.isOpen } }.vaults.single()
+        assertEquals("exFAT", item.fsKind)
+        assertEquals(512L, item.freeBytes)
+        assertEquals((1L shl 20), item.volumeBytes)
+        assertEquals(4096L, item.fileBytes)
+    }
+
+    @Test
+    fun closed_item_has_last_access_from_prefs() = runTest {
+        val store = FakeStore(ref)
+        val prefs = app.coffer.settings.UiPrefs(MemoryPrefs())
+        prefs.recordAccess("v1", 1234L)
+        val vm = VaultsViewModel(
+            store, sessions(FakeNative(), store, StandardTestDispatcher(testScheduler)), FakeDocuments(), prefs,
+            StandardTestDispatcher(testScheduler),
+        )
+        val item = vm.uiState.first { it.vaults.isNotEmpty() }.vaults.single()
+        assertFalse(item.isOpen)
+        assertEquals(1234L, item.lastAccess)
+        assertEquals(null, item.freeBytes)
+    }
+
+    @Test
     fun remove_forgets_last_access() = runTest {
         val store = FakeStore(ref)
         val prefs = app.coffer.settings.UiPrefs(MemoryPrefs())

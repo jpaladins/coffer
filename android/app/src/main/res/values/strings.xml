@@ -170,4 +170,31 @@
     <string name="onb2_body">No internet permission, no accounts, no tracking. Passwords stay in memory only while a container is open.</string>
     <string name="onb3_title">Get started</string>
     <string name="onb3_body">Add a container you already have, or create a new one. Coffer never copies it.</string>
+    <plurals name="time_minutes_ago">
+        <item quantity="one">%d minute ago</item>
+        <item quantity="other">%d minutes ago</item>
+    </plurals>
+    <plurals name="time_hours_ago">
+        <item quantity="one">%d hour ago</item>
+        <item quantity="other">%d hours ago</item>
+    </plurals>
+    <plurals name="time_days_ago">
+        <item quantity="one">%d day ago</item>
+        <item quantity="other">%d days ago</item>
+    </plurals>
+    <string name="time_now">just now</string>
+    <string name="vault_closed_badge">Locked</string>
+    <string name="vault_last_access">Last opened %1$s</string>
+    <string name="vault_never_opened">Not opened yet</string>
+    <string name="vault_free_of">%1$s free of %2$s</string>
+    <string name="vault_lock">Lock</string>
+    <string name="vault_details">Details</string>
+    <string name="vault_details_name">Name</string>
+    <string name="vault_details_size">File size</string>
+    <string name="vault_details_cipher">Encryption</string>
+    <string name="vault_details_prf">Key derivation (PRF)</string>
+    <string name="vault_details_fs">File system</string>
+    <string name="vault_details_unknown">Unknown</string>
+    <string name="vault_details_locked_hint">Unlock the container to see its encryption and file system.</string>
+    <string name="vaults_settings">Settings</string>
 </resources>

@@ -34,6 +34,7 @@ class FakeHandle(
 ) : VaultHandle {
     var locked = false
     override val info = VolumeInfo("AES", "SHA-512", false, false, "exFAT", 1 shl 20)
+    override fun freeBytes(): Long? = 512L
     private fun check() { if (locked) throw CofferException.Closed() }
     override fun list(path: String): List<Entry> {
         check()
@@ -92,6 +93,8 @@ class FakeDocuments : DocumentAccess {
     override fun availableBytes(uri: String) = available
     override fun persist(uri: String) { persisted += uri }
     override fun displayName(uri: String) = uri.substringAfterLast('/')
+    val sizes = mutableMapOf<String, Long>()
+    override fun fileSize(uri: String): Long? = sizes[uri]
 }
 
 /** Writable in-memory volume (case-insensitive, like FAT/exFAT). */

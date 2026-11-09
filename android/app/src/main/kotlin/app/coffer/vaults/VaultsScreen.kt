@@ -3,55 +3,62 @@ package app.coffer.vaults
 
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.core.Animatable
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.RadioButton
-import androidx.compose.foundation.selection.selectable
-import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.ElevatedCard
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.ListItem
+import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.coffer.R
-import app.coffer.ui.CofferMark
+import app.coffer.ui.components.CofferIcons
+import app.coffer.ui.components.CofferTopBar
+import app.coffer.ui.components.EmptyState
+import app.coffer.ui.components.rememberAnimationsEnabled
+import kotlinx.coroutines.delay
 
 @Composable
 fun VaultsScreen(
@@ -66,18 +73,23 @@ fun VaultsScreen(
         uri?.let { viewModel.onDocumentPicked(it.toString()) }
     }
     LaunchedEffect(Unit) { if (openPicker) picker.launch(arrayOf("*/*")) }
+    LifecycleResumeEffect(Unit) {
+        viewModel.onResume()
+        onPauseOrDispose {}
+    }
     VaultsContent(
         state = state,
         onAdd = { picker.launch(arrayOf("*/*")) },
         onCreate = onCreate,
         onOpen = { onOpen(it.id, viewModel.isOpen(it.id)) },
+        onLock = viewModel::onLock,
         onRemove = viewModel::onRemove,
         onLockAll = viewModel::onLockAll,
         onSettings = onSettings,
     )
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun VaultsContent(
     state: VaultsUiState,
@@ -87,113 +99,118 @@ fun VaultsContent(
     onLockAll: () -> Unit,
     onSettings: () -> Unit = {},
     onCreate: () -> Unit = {},
+    onLock: (String) -> Unit = {},
 ) {
-    var addMenu by remember { mutableStateOf(false) }
+    var addSheet by remember { mutableStateOf(false) }
+    var details by remember { mutableStateOf<String?>(null) }
+    val scroll = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
     Scaffold(
+        modifier = Modifier.nestedScroll(scroll.nestedScrollConnection),
         topBar = {
-            TopAppBar(
-                title = { Text(stringResource(R.string.vaults_title)) },
-                actions = {
-                    IconButton(onClick = onSettings) {
-                        Icon(Icons.Filled.Settings, contentDescription = stringResource(R.string.settings_autolock))
+            CofferTopBar(stringResource(R.string.vaults_title), scroll) {
+                if (state.anyOpen) {
+                    IconButton(onClick = onLockAll) {
+                        Icon(Icons.Filled.Lock, contentDescription = stringResource(R.string.vaults_lock_all))
                     }
-                    if (state.anyOpen) {
-                        IconButton(onClick = onLockAll) {
-                            Icon(Icons.Filled.Lock, contentDescription = stringResource(R.string.vaults_lock_all))
-                        }
-                    }
-                },
-            )
+                }
+                IconButton(onClick = onSettings) {
+                    Icon(Icons.Filled.Settings, contentDescription = stringResource(R.string.vaults_settings))
+                }
+            }
         },
         floatingActionButton = {
             if (state.vaults.isNotEmpty()) {
-                Box {
-                    ExtendedFloatingActionButton(
-                        onClick = { addMenu = true },
-                        icon = { Icon(Icons.Filled.Add, contentDescription = null) },
-                        text = { Text(stringResource(R.string.vaults_add)) },
-                    )
-                    DropdownMenu(expanded = addMenu, onDismissRequest = { addMenu = false }) {
-                        DropdownMenuItem(text = { Text(stringResource(R.string.vaults_add_existing)) }, onClick = { addMenu = false; onAdd() })
-                        DropdownMenuItem(text = { Text(stringResource(R.string.vaults_create_new)) }, onClick = { addMenu = false; onCreate() })
-                    }
-                }
+                ExtendedFloatingActionButton(
+                    onClick = { addSheet = true },
+                    icon = { Icon(Icons.Filled.Add, contentDescription = null) },
+                    text = { Text(stringResource(R.string.vaults_add)) },
+                    containerColor = MaterialTheme.colorScheme.tertiary,
+                    contentColor = MaterialTheme.colorScheme.onTertiary,
+                )
             }
         },
     ) { padding ->
         if (state.loaded && state.vaults.isEmpty()) {
-            EmptyVaults(Modifier.padding(padding), onAdd, onCreate)
+            Column(Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState())) {
+                EmptyState(
+                    CofferIcons.FolderOpen,
+                    stringResource(R.string.vaults_empty_title),
+                    stringResource(R.string.vaults_empty_body),
+                ) {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Button(
+                            onClick = onAdd,
+                            modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.tertiary,
+                                contentColor = MaterialTheme.colorScheme.onTertiary,
+                            ),
+                        ) {
+                            Icon(Icons.Filled.Add, contentDescription = null)
+                            Spacer(Modifier.width(8.dp))
+                            Text(stringResource(R.string.vaults_add_existing))
+                        }
+                        OutlinedButton(onClick = onCreate, modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp)) {
+                            Text(stringResource(R.string.vaults_create_new))
+                        }
+                    }
+                }
+            }
         } else {
+            val animate = rememberAnimationsEnabled()
+            // Staggered entrance only the first time the list appears.
+            var entered by rememberSaveable { mutableStateOf(false) }
+            LaunchedEffect(state.vaults.isNotEmpty()) { if (state.vaults.isNotEmpty()) entered = true }
             LazyColumn(
                 Modifier.fillMaxSize().padding(padding),
-                contentPadding = PaddingValues(16.dp, 8.dp, 16.dp, 96.dp),
+                contentPadding = PaddingValues(16.dp, 8.dp, 16.dp, 112.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                items(state.vaults, key = { it.id }) { VaultCard(it, onOpen, onRemove) }
-            }
-        }
-    }
-}
-
-@Composable
-private fun VaultCard(item: VaultItem, onOpen: (VaultItem) -> Unit, onRemove: (String) -> Unit) {
-    var menu by remember { mutableStateOf(false) }
-    ElevatedCard(onClick = { onOpen(item) }, modifier = Modifier.fillMaxWidth()) {
-        Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-            CofferMark(size = 40.dp, open = item.isOpen)
-            Spacer(Modifier.width(16.dp))
-            Column(Modifier.weight(1f)) {
-                Text(item.label, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                if (item.isOpen) {
-                    AssistChip(onClick = { onOpen(item) }, label = { Text(stringResource(R.string.vaults_open_badge)) })
-                }
-            }
-            Box {
-                IconButton(onClick = { menu = true }) {
-                    Icon(Icons.Filled.MoreVert, contentDescription = stringResource(R.string.vaults_remove))
-                }
-                DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
-                    DropdownMenuItem(
-                        text = {
-                            Column {
-                                Text(stringResource(R.string.vaults_remove))
-                                Text(stringResource(R.string.vaults_remove_hint), style = MaterialTheme.typography.bodySmall)
-                            }
+                itemsIndexed(state.vaults, key = { _, it -> it.id }) { index, item ->
+                    val appear = remember { Animatable(if (entered || !animate) 1f else 0f) }
+                    LaunchedEffect(Unit) {
+                        if (appear.value < 1f) {
+                            delay(40L * index)
+                            appear.animateTo(1f)
+                        }
+                    }
+                    VaultCard(
+                        item,
+                        onOpen = { onOpen(item) },
+                        onLock = { onLock(item.id) },
+                        onRemove = { onRemove(item.id) },
+                        onDetails = { details = item.id },
+                        modifier = Modifier.animateItem().graphicsLayer {
+                            alpha = appear.value
+                            translationY = (1f - appear.value) * 24.dp.toPx()
                         },
-                        onClick = { menu = false; onRemove(item.id) },
                     )
                 }
             }
         }
     }
-}
-
-@Composable
-private fun EmptyVaults(modifier: Modifier, onAdd: () -> Unit, onCreate: () -> Unit) {
-    Column(
-        modifier.fillMaxSize().padding(32.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center,
-    ) {
-        CofferMark(size = 96.dp)
-        Spacer(Modifier.height(24.dp))
-        Text(stringResource(R.string.vaults_empty_title), style = MaterialTheme.typography.headlineSmall)
-        Spacer(Modifier.height(8.dp))
-        Text(
-            stringResource(R.string.vaults_empty_body),
-            style = MaterialTheme.typography.bodyLarge,
-            textAlign = TextAlign.Center,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Spacer(Modifier.height(24.dp))
-        Button(onClick = onAdd) {
-            Icon(Icons.Filled.Add, contentDescription = null)
-            Spacer(Modifier.width(8.dp))
-            Text(stringResource(R.string.vaults_add_existing))
-        }
-        Spacer(Modifier.height(8.dp))
-        androidx.compose.material3.OutlinedButton(onClick = onCreate) {
-            Text(stringResource(R.string.vaults_create_new))
+    if (addSheet) {
+        ModalBottomSheet(onDismissRequest = { addSheet = false }) {
+            Column(Modifier.navigationBarsPadding().padding(bottom = 16.dp)) {
+                ListItem(
+                    headlineContent = { Text(stringResource(R.string.vaults_add_existing)) },
+                    leadingContent = { Icon(CofferIcons.FolderOpen, contentDescription = null) },
+                    colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
+                    modifier = Modifier.clickableRow { addSheet = false; onAdd() },
+                )
+                ListItem(
+                    headlineContent = { Text(stringResource(R.string.vaults_create_new)) },
+                    leadingContent = { Icon(Icons.Filled.Add, contentDescription = null) },
+                    colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
+                    modifier = Modifier.clickableRow { addSheet = false; onCreate() },
+                )
+                Spacer(Modifier.height(8.dp))
+            }
         }
     }
+    details?.let { id -> state.vaults.firstOrNull { it.id == id } }?.let { item ->
+        VaultDetailsSheet(item) { details = null }
+    }
 }
+
+private fun Modifier.clickableRow(onClick: () -> Unit) = clickable(onClick = onClick).heightIn(min = 56.dp)
