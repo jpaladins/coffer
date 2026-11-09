@@ -1,0 +1,1 @@
+Nuova grafica: introduzione guidata, card dei container con dettagli, ricerca, ordinamento, griglia con anteprime delle foto solo in memoria, selezione multipla, creazione dei container passo per passo, visore e blocco dell'app rinnovati.

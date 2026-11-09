@@ -1,0 +1,1 @@
+New design: guided setup, container cards with details, search, sort, grid with photo previews kept in memory only, multiple selection, step-by-step container creation, redesigned viewer and app lock.
