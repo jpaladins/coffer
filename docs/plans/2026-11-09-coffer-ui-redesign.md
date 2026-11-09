@@ -1,4 +1,4 @@
-# Coffer 0.0.2a — Piano di implementazione del redesign
+# Coffer 0.1.0a — Piano di implementazione del redesign
 
 **Obiettivo:** applicare il redesign Material 3 Expressive descritto nella spec, con onboarding, lista container a card e browser file più ricco.
 
@@ -17,7 +17,7 @@
 - minSdk 26, targetSdk 36, edge-to-edge; nessun permesso nuovo (mai INTERNET).
 - Stringhe in `values/strings.xml` (EN) e `values-it/strings.xml` (IT), apostrofi IT escapati `\'`.
 - Messaggi di commit semplici, senza riferimenti a strumenti; nessun riferimento simile in codice e documenti.
-- Versione finale: `versionName "0.0.2a"`, `versionCode 5`.
+- Versione finale: `versionName "0.1.0a"`, `versionCode 5`.
 
 ## Rischi da tenere d'occhio
 1. Container con migliaia di file: ordinamento, ricerca e griglia restano fluidi. `sortEntries` e `filterEntries` sono O(n log n) e vengono chiamate fuori dalla composizione, con `remember` su lista, criterio e query.
@@ -412,19 +412,19 @@ const val THUMB_MAX_FILE = 30L shl 20
   - icone `contentDescription` o `null` solo se decorative;
   - target ≥ 48 dp.
 - Lint: nessun nuovo avviso nei file toccati (`./gradlew :app:lintDebug`, da confrontare con gli errori già noti: `local.properties`, `ContextCastToActivity`, `app_name`).
-- Matrice di screenshot sull'emulatore, salvata in `docs/qa/0.0.2a-screens/`:
+- Matrice di screenshot sull'emulatore, salvata in `docs/qa/0.1.0a-screens/`:
   - schermate: lista, sblocco, browser (lista e griglia), selezione, visualizzatore, creazione (4 passi), impostazioni, blocco, info, onboarding (3 pagine);
   - per ciascuna, chiaro e scuro, font al 100% e al 200%.
 - "Rimuovi animazioni" attivo: si naviga senza animazioni e senza crash.
 - [ ] Verifica: suite completa `:core:data:test :app:testDebugUnitTest :app:connectedDebugAndroidTest` verde.
 - [ ] Commit: `chore(app): redesign polish and accessibility pass`
 
-### Task 12: Release 0.0.2a
+### Task 12: Release 0.1.0a
 
-- `android/app/build.gradle.kts`: `versionCode = 5`, `versionName = "0.0.2a"`.
+- `android/app/build.gradle.kts`: `versionCode = 5`, `versionName = "0.1.0a"`.
 - `fastlane/metadata/android/{en-US,it-IT}/changelogs/5.txt`: nuova interfaccia, onboarding, card dei container, ricerca, ordinamento, griglia con anteprime, selezione multipla.
 - Rigenerare screenshot e grafiche dello store (`scripts/store-screens.py`, `scripts/store-graphics.py`) e aggiornare `docs/store/raw/`.
 - Informativa privacy (`docs/privacy.md`, `docs/site/privacy/index.html`, e copia nel repository pubblico `coffer-privacy`): aggiungere che l'app salva sul telefono la data dell'ultimo accesso a ogni container (disattivabile) e che le anteprime delle foto restano solo in memoria.
-- `./gradlew :app:bundleRelease` e copia in `release/coffer-0.0.2a.aab`; verificare con `keytool -printcert` la stessa impronta SHA-256 (`F4:2E:20:3B:…:AC:73`) e con `aapt2 dump badging` `versionCode='5'`.
+- `./gradlew :app:bundleRelease` e copia in `release/coffer-0.1.0a.aab`; verificare con `keytool -printcert` la stessa impronta SHA-256 (`F4:2E:20:3B:…:AC:73`) e con `aapt2 dump badging` `versionCode='5'`.
 - `scripts/check-reproducible.ps1`: due build pulite producono lo stesso hash.
-- [ ] Commit: `build: 0.0.2a (versionCode 5)`, poi push.
+- [ ] Commit: `build: 0.1.0a (versionCode 5)`, poi push.

@@ -1,4 +1,4 @@
-# Coffer 0.0.2a — Redesign dell'interfaccia
+# Coffer 0.1.0a — Redesign dell'interfaccia
 
 **Obiettivo:** un'interfaccia moderna e professionale, curata nei dettagli, con lo stile Material 3 Expressive, mantenendo l'identità di Coffer (icona esagonale, verde bosco `#0B3D2E` e oro `#E8B04A`, vedi `docs/brand/brand.md`).
 
@@ -11,7 +11,7 @@
 - Nessun dato del container scritto fuori dal container (miniature e cache solo in memoria).
 - "Rimuovi animazioni" del sistema rispettato: con animazioni disattivate le transizioni diventano istantanee.
 - Funziona da minSdk 26 a targetSdk 36, edge-to-edge su tutte le schermate.
-- Versione 0.0.2a, versionCode successivo all'ultimo caricato su Play.
+- Versione 0.1.0a, versionCode successivo all'ultimo caricato su Play.
 
 ## 1. Sistema grafico (`app.coffer.ui.theme`, `app.coffer.ui.components`)
 
