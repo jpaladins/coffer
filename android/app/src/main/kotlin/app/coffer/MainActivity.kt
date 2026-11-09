@@ -24,6 +24,12 @@ import androidx.lifecycle.repeatOnLifecycle
 import androidx.navigation.compose.rememberNavController
 import app.coffer.data.SessionManager
 import app.coffer.nav.CofferNavHost
+import app.coffer.nav.Routes
+import app.coffer.onboarding.shouldShowOnboarding
+import app.coffer.settings.UiPrefs
+import app.coffer.data.VaultRef
+import app.coffer.data.VaultStore
+import androidx.compose.runtime.remember
 import app.coffer.security.AppLock
 import app.coffer.security.AppLockMode
 import app.coffer.security.LockScreen
@@ -42,6 +48,8 @@ class MainActivity : FragmentActivity() {
     @Inject lateinit var settings: SecuritySettings
     @Inject lateinit var appLock: AppLock
     @Inject lateinit var remembered: RememberedPasswords
+    @Inject lateinit var uiPrefs: UiPrefs
+    @Inject lateinit var store: VaultStore
 
     private val notificationPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) {}
 
@@ -77,8 +85,24 @@ class MainActivity : FragmentActivity() {
                     // Nothing of the vaults is drawn until the lock state is known.
                     Surface(Modifier.fillMaxSize()) {}
                 } else {
-                    LaunchedEffect(Unit) { if (!e2e) askNotificationsOnce() }
-                    CofferNavHost(sessions.openIds, settings, appLock, remembered.isAvailable(), nav)
+                    val done by uiPrefs.onboardingDone.collectAsStateWithLifecycle<Boolean?>(initialValue = null)
+                    val vaults by store.vaults.collectAsStateWithLifecycle<List<VaultRef>?>(initialValue = null)
+                    val d = done
+                    val v = vaults
+                    if (d == null || v == null) {
+                        Surface(Modifier.fillMaxSize()) {}
+                    } else {
+                        val start = remember { if (shouldShowOnboarding(d, v.size)) Routes.ONBOARDING else Routes.VAULTS }
+                        // Updated from 0.0.1a with containers: never show it later either.
+                        LaunchedEffect(d, v.isEmpty()) { if (!d && v.isNotEmpty()) uiPrefs.setOnboardingDone() }
+                        // The notification request comes after the onboarding.
+                        if (d) LaunchedEffect(Unit) { if (!e2e) askNotificationsOnce() }
+                        CofferNavHost(
+                            sessions.openIds, settings, appLock, remembered.isAvailable(), nav,
+                            startDestination = start,
+                            onOnboardingDone = { lifecycleScope.launch { uiPrefs.setOnboardingDone() } },
+                        )
+                    }
                 }
             }
         }

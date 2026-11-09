@@ -154,4 +154,15 @@
     <string name="create_size_max">Spazio libero insufficiente: disponibili %1$s.</string>
     <string name="action_back">Indietro</string>
     <string name="action_more">Altre opzioni</string>
+    <string name="onb_skip">Salta</string>
+    <string name="onb_next">Avanti</string>
+    <string name="onb_add">Aggiungi container</string>
+    <string name="onb_create">Crea container</string>
+    <string name="onb_page">Pagina %1$d di %2$d</string>
+    <string name="onb1_title">I tuoi volumi VeraCrypt, in tasca</string>
+    <string name="onb1_body">Coffer apre, modifica e crea container VeraCrypt su questo telefono. Restano compatibili con VeraCrypt sul computer.</string>
+    <string name="onb2_title">Privato per costruzione</string>
+    <string name="onb2_body">Nessun permesso internet, nessun account, nessun tracciamento. Le password restano in memoria solo mentre un container è aperto.</string>
+    <string name="onb3_title">Per iniziare</string>
+    <string name="onb3_body">Aggiungi un container che hai già oppure creane uno nuovo. Coffer non lo copia mai.</string>
 </resources>

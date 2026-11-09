@@ -12,6 +12,9 @@ import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.ui.unit.IntOffset
 import app.coffer.ui.components.rememberAnimationsEnabled
+import app.coffer.onboarding.OnboardingExit
+import app.coffer.onboarding.OnboardingScreen
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -42,6 +45,7 @@ import app.coffer.viewer.ViewerViewModel
 
 object Routes {
     const val VAULTS = "vaults"
+    const val ONBOARDING = "onboarding"
     const val CREATE = "create"
     const val SETTINGS = "settings"
     const val ABOUT = "about"
@@ -49,6 +53,9 @@ object Routes {
     fun browser(id: String) = "browser/${Uri.encode(id)}"
     fun viewer(id: String, path: String) = "viewer/${Uri.encode(id)}?path=${Uri.encode(path)}"
 }
+
+/** Set on the list entry to open the document picker once (onboarding "Add container"). */
+private const val KEY_PICK = "pick_container"
 
 /** Navigates to the vault list and drops everything above it (used by auto-lock). */
 fun NavHostController.backToVaults() {
@@ -66,6 +73,8 @@ fun CofferNavHost(
     appLock: AppLock,
     biometricAvailable: Boolean,
     nav: NavHostController = rememberNavController(),
+    startDestination: String = Routes.VAULTS,
+    onOnboardingDone: () -> Unit = {},
 ) {
     val open by openIds.collectAsStateWithLifecycle()
     val entry by nav.currentBackStackEntryAsState()
@@ -80,15 +89,28 @@ fun CofferNavHost(
     val fade = MaterialTheme.motionScheme.defaultEffectsSpec<Float>()
     NavHost(
         nav,
-        startDestination = Routes.VAULTS,
+        startDestination = startDestination,
         enterTransition = { if (animate) slideInHorizontally(slide) { it / 4 } + fadeIn(fade) else EnterTransition.None },
         exitTransition = { if (animate) slideOutHorizontally(slide) { -it / 4 } + fadeOut(fade) else ExitTransition.None },
         popEnterTransition = { if (animate) slideInHorizontally(slide) { -it / 4 } + fadeIn(fade) else EnterTransition.None },
         popExitTransition = { if (animate) slideOutHorizontally(slide) { it / 4 } + fadeOut(fade) else ExitTransition.None },
     ) {
-        composable(Routes.VAULTS) {
+        composable(Routes.ONBOARDING) {
+            OnboardingScreen { exit ->
+                onOnboardingDone()
+                nav.navigate(Routes.VAULTS) { popUpTo(Routes.ONBOARDING) { inclusive = true } }
+                when (exit) {
+                    OnboardingExit.AddExisting -> nav.currentBackStackEntry?.savedStateHandle?.set(KEY_PICK, true)
+                    OnboardingExit.CreateNew -> nav.navigate(Routes.CREATE)
+                    OnboardingExit.Skip -> Unit
+                }
+            }
+        }
+        composable(Routes.VAULTS) { entry ->
+            val pickNow = remember { entry.savedStateHandle.remove<Boolean>(KEY_PICK) == true }
             VaultsScreen(
                 hiltViewModel(),
+                openPicker = pickNow,
                 onSettings = { nav.navigate(Routes.SETTINGS) },
                 onCreate = { nav.navigate(Routes.CREATE) },
             ) { id, isOpen ->

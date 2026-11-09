@@ -38,6 +38,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -57,12 +58,14 @@ fun VaultsScreen(
     viewModel: VaultsViewModel,
     onSettings: () -> Unit,
     onCreate: () -> Unit,
+    openPicker: Boolean = false,
     onOpen: (id: String, isOpen: Boolean) -> Unit,
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         uri?.let { viewModel.onDocumentPicked(it.toString()) }
     }
+    LaunchedEffect(Unit) { if (openPicker) picker.launch(arrayOf("*/*")) }
     VaultsContent(
         state = state,
         onAdd = { picker.launch(arrayOf("*/*")) },
