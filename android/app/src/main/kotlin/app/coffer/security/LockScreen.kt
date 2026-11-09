@@ -169,9 +169,11 @@ fun LockScreen(appLock: AppLock, mode: AppLockMode) {
             Row(
                 Modifier.graphicsLayer { translationX = shake.value.dp.toPx() }
                     .semantics { contentDescription = digits; liveRegion = LiveRegionMode.Polite },
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                // Tighter past 8 dots, so 16 still fit a small phone.
+                horizontalArrangement = Arrangement.spacedBy(if (pinDotCount(length) > 8) 6.dp else 12.dp),
             ) {
-                repeat(maxOf(MIN_PIN, minOf(length + 1, MAX_DOTS)).coerceAtMost(MAX_DOTS)) { i -> Dot(i < length) }
+                val small = pinDotCount(length) > 8
+                repeat(pinDotCount(length)) { i -> Dot(i < length, if (small) 12.dp else 14.dp) }
             }
             Spacer(Modifier.height(8.dp))
             val note = if (waiting) stringResource(R.string.lock_wait, ((lockedUntil - now) / 1000 + 1).toInt()) else message
@@ -220,15 +222,17 @@ fun LockScreen(appLock: AppLock, mode: AppLockMode) {
 
 /** Above [MAX_PIN]: PINs set before 0.1.0a had no maximum and must still unlock. */
 private const val MAX_PIN_INPUT = 64
-private const val MAX_DOTS = 8
+/** Typed digits plus one free dot, at least [MIN_PIN], at most [MAX_PIN] (longer legacy PINs show all filled). */
+internal fun pinDotCount(length: Int) = maxOf(MIN_PIN, minOf(length + 1, MAX_PIN))
+
 private val KEY = 72.dp
 
 @Composable
-private fun Dot(filled: Boolean) {
+private fun Dot(filled: Boolean, size: androidx.compose.ui.unit.Dp) {
     val c = MaterialTheme.colorScheme
     val fill by animateFloatAsState(if (filled) 1f else 0f, spring(dampingRatio = Spring.DampingRatioMediumBouncy), label = "dot")
     Box(
-        Modifier.size(14.dp).graphicsLayer { scaleX = 0.7f + 0.3f * fill; scaleY = 0.7f + 0.3f * fill }
+        Modifier.size(size).graphicsLayer { scaleX = 0.7f + 0.3f * fill; scaleY = 0.7f + 0.3f * fill }
             .background(if (filled) c.primary else c.surfaceContainerHighest, CircleShape),
     )
 }

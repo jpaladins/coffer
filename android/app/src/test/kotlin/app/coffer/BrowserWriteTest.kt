@@ -247,6 +247,20 @@ class BrowserWriteTest {
     }
 
     @Test
+    fun delete_selected_skips_entries_hidden_by_search() = runTest {
+        val h = WritableHandle()
+        h.files["/a.txt"] = byteArrayOf(1); h.files["/b.txt"] = byteArrayOf(2)
+        val e = env(h)
+        e.vm.onToggleSelect("a.txt")
+        e.vm.onToggleSelect("b.txt")
+        e.vm.onQuery("b")
+        assertEquals(setOf("b.txt"), e.vm.uiState.value.actionable)
+        e.vm.onDeleteSelected()
+        advanceUntilIdle()
+        assertEquals(listOf("a.txt"), names(e))
+    }
+
+    @Test
     fun delete_selected_blocked_during_import() = runTest {
         val h = WritableHandle()
         h.files["/keep.txt"] = byteArrayOf(3)

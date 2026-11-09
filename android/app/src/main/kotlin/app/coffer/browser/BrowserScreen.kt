@@ -275,21 +275,22 @@ fun BrowserContent(state: BrowserUiState, snackbar: SnackbarHostState, actions: 
     var dialog by remember { mutableStateOf<Dialog?>(null) }
     // Sorting and filtering run outside composition of the rows, once per change.
     val visible = remember(state.entries, state.query, state.sort) { state.visible }
-    val selectedFiles = remember(state.entries, state.selected) {
-        state.entries.any { !it.isDir && it.name in state.selected }
+    val actionable = state.actionable
+    val selectedFiles = remember(state.visible, state.selected) {
+        state.visible.any { !it.isDir && it.name in state.selected }
     }
     Scaffold(
         topBar = {
             Column {
                 if (state.selecting) {
                     SelectionBar(
-                        count = state.selected.size,
+                        count = actionable.size,
                         canExport = selectedFiles && state.exportProgress == null,
-                        canDelete = state.canEdit,
+                        canDelete = state.canEdit && actionable.isNotEmpty(),
                         onClear = actions::onClearSelection,
                         onSelectAll = actions::onSelectAll,
                         onExport = actions::onExportSelected,
-                        onDelete = { dialog = Dialog.DeleteSelected(state.selected.size) },
+                        onDelete = { dialog = Dialog.DeleteSelected(actionable.size) },
                     )
                 } else {
                     BrowserTopBar(state, actions) { dialog = Dialog.NewFolder }

@@ -63,6 +63,9 @@ data class BrowserUiState(
     /** What the list shows: filtered by [query], then sorted. */
     val visible: List<Entry> get() = sortEntries(filterEntries(entries, query), sort)
     val selecting: Boolean get() = selected.isNotEmpty()
+
+    /** Selected entries the search still shows: only these are deleted or exported. */
+    val actionable: Set<String> get() = visible.mapNotNullTo(HashSet()) { e -> e.name.takeIf { it in selected } }
     /** Edits wait for a running import: both would change the same folders. */
     val canEdit: Boolean get() = writable && !busy && transfer == null
     val breadcrumbs: List<String> get() = path.split('/').filter { it.isNotEmpty() }
@@ -192,8 +195,8 @@ class BrowserViewModel @AssistedInject constructor(
     /** Deletes every selected entry; refused like any edit while an import runs. */
     fun onDeleteSelected() {
         val s = _uiState.value
-        if (!s.canEdit || s.selected.isEmpty()) return
-        val names = s.selected.toList()
+        if (!s.canEdit || s.actionable.isEmpty()) return
+        val names = s.actionable.toList()
         _uiState.update { it.copy(selected = emptySet()) }
         mutate { h, dir -> names.forEach { h.removeRecursive(childPath(dir, it)) } }
     }
@@ -201,7 +204,7 @@ class BrowserViewModel @AssistedInject constructor(
     /** Exports the selected files (folders are skipped) into a folder picked with OpenDocumentTree. */
     fun onExportSelected(treeUri: String) {
         val s = _uiState.value
-        val files = s.entries.filter { !it.isDir && it.name in s.selected }
+        val files = s.visible.filter { !it.isDir && it.name in s.selected }
         if (files.isEmpty()) return
         val h = handle() ?: return run { _effects.trySend(BrowserEffect.Exit) }
         val total = files.sumOf { it.size }.coerceAtLeast(1)
