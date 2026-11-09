@@ -152,4 +152,6 @@
     <string name="about_licenses">Licenze open source</string>
     <string name="about_developed_by">Sviluppato da</string>
     <string name="create_size_max">Spazio libero insufficiente: disponibili %1$s.</string>
+    <string name="action_back">Indietro</string>
+    <string name="action_more">Altre opzioni</string>
 </resources>

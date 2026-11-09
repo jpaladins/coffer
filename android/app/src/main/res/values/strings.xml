@@ -157,4 +157,6 @@
     <string name="about_social_instagram" translatable="false">Instagram</string>
     <string name="about_social_threads" translatable="false">Threads</string>
     <string name="create_size_max">Not enough free space: %1$s available.</string>
+    <string name="action_back">Back</string>
+    <string name="action_more">More options</string>
 </resources>

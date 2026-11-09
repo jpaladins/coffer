@@ -2,6 +2,16 @@
 package app.coffer.nav
 
 import android.net.Uri
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.ui.unit.IntOffset
+import app.coffer.ui.components.rememberAnimationsEnabled
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -48,6 +58,7 @@ fun NavHostController.backToVaults() {
     }
 }
 
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun CofferNavHost(
     openIds: StateFlow<Set<String>>,
@@ -64,7 +75,17 @@ fun CofferNavHost(
         val id = entry?.arguments?.getString("id")
         if ((route.startsWith("browser") || route.startsWith("viewer")) && id !in open) nav.backToVaults()
     }
-    NavHost(nav, startDestination = Routes.VAULTS) {
+    val animate = rememberAnimationsEnabled()
+    val slide = MaterialTheme.motionScheme.defaultSpatialSpec<IntOffset>()
+    val fade = MaterialTheme.motionScheme.defaultEffectsSpec<Float>()
+    NavHost(
+        nav,
+        startDestination = Routes.VAULTS,
+        enterTransition = { if (animate) slideInHorizontally(slide) { it / 4 } + fadeIn(fade) else EnterTransition.None },
+        exitTransition = { if (animate) slideOutHorizontally(slide) { -it / 4 } + fadeOut(fade) else ExitTransition.None },
+        popEnterTransition = { if (animate) slideInHorizontally(slide) { -it / 4 } + fadeIn(fade) else EnterTransition.None },
+        popExitTransition = { if (animate) slideOutHorizontally(slide) { it / 4 } + fadeOut(fade) else ExitTransition.None },
+    ) {
         composable(Routes.VAULTS) {
             VaultsScreen(
                 hiltViewModel(),
