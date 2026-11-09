@@ -192,4 +192,23 @@
     <string name="vault_details_unknown">Sconosciuta</string>
     <string name="vault_details_locked_hint">Sblocca il container per vederne cifratura e file system.</string>
     <string name="vaults_settings">Impostazioni</string>
+    <string name="browser_search">Cerca in questa cartella</string>
+    <string name="browser_search_close">Chiudi ricerca</string>
+    <string name="browser_sort">Ordina</string>
+    <string name="sort_name">Nome</string>
+    <string name="sort_modified">Data di modifica</string>
+    <string name="sort_size">Dimensione</string>
+    <string name="sort_ascending">Crescente</string>
+    <string name="sort_descending">Decrescente</string>
+    <string name="browser_view_grid">Vista a griglia</string>
+    <string name="browser_view_list">Vista a elenco</string>
+    <string name="selection_count">%1$d selezionati</string>
+    <string name="selection_clear">Annulla selezione</string>
+    <string name="selection_all">Seleziona tutto</string>
+    <string name="selection_delete_title">Eliminare %1$d elementi?</string>
+    <string name="export_many_done">%1$d file esportati</string>
+    <string name="export_running">Esportazione in corso…</string>
+    <string name="browser_no_results">Nessun risultato in questa cartella</string>
+    <string name="browser_empty_body">Importa file con il pulsante in basso.</string>
+    <string name="browser_more">Altre opzioni per %1$s</string>
 </resources>

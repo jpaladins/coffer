@@ -184,4 +184,5 @@ class BrowserViewerTest {
 class FakeExporter : app.coffer.platform.Exporter {
     val sinks = mutableMapOf<String, ByteArrayOutputStream>()
     override fun openSink(uri: String) = ByteArrayOutputStream().also { sinks[uri] = it }
+    override fun createInTree(treeUri: String, name: String, mime: String) = treeUri + "/" + name
 }

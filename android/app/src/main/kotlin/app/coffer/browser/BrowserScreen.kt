@@ -5,42 +5,47 @@ import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
-import androidx.core.content.ContextCompat
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.horizontalScroll
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.BottomAppBar
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
-import androidx.compose.material3.ListItem
+import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -48,18 +53,21 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TextField
+import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextRange
@@ -67,19 +75,25 @@ import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.repeatOnLifecycle
 import app.coffer.R
-import app.coffer.data.CofferException
 import app.coffer.data.Entry
 import app.coffer.data.childPath
 import app.coffer.provider.VaultFileProvider
+import app.coffer.settings.BrowserLayout
+import app.coffer.settings.SortKey
+import app.coffer.settings.SortOrder
 import app.coffer.transfer.ImportResult
+import app.coffer.ui.components.CofferIcons
+import app.coffer.ui.components.EmptyState
+import app.coffer.ui.components.ProgressCard
+import app.coffer.ui.components.rememberHaptics
 import app.coffer.ui.userMessage
 import app.coffer.util.MimeTypes
-import java.text.DateFormat
-import java.util.Date
 
 /** Callbacks of the browser content; the ViewModel-backed screen wires them. */
 interface BrowserActions {
@@ -97,6 +111,15 @@ interface BrowserActions {
     fun onStartMove(entry: Entry)
     fun onMoveHere()
     fun onCancelMove()
+    fun onQuery(q: String) {}
+    fun onToggleSearch() {}
+    fun onSort(order: SortOrder) {}
+    fun onLayout(layout: BrowserLayout) {}
+    fun onToggleSelect(name: String) {}
+    fun onSelectAll() {}
+    fun onClearSelection() {}
+    fun onDeleteSelected() {}
+    fun onExportSelected() {}
 }
 
 @Composable
@@ -105,6 +128,7 @@ fun BrowserScreen(viewModel: BrowserViewModel, onExit: () -> Unit, onOpenFile: (
     val context = LocalContext.current
     val snackbar = remember { SnackbarHostState() }
     val lifecycle = LocalLifecycleOwner.current.lifecycle
+    val haptics = rememberHaptics()
     var message by remember { mutableStateOf<BrowserEffect?>(null) }
     LaunchedEffect(Unit) {
         lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
@@ -112,7 +136,13 @@ fun BrowserScreen(viewModel: BrowserViewModel, onExit: () -> Unit, onOpenFile: (
                 when (e) {
                     BrowserEffect.Exit -> onExit()
                     is BrowserEffect.OpenFile -> onOpenFile(e.path)
-                    else -> message = e
+                    else -> {
+                        when (e) {
+                            is BrowserEffect.Imported, is BrowserEffect.Exported, is BrowserEffect.ExportedMany -> haptics.confirm()
+                            else -> haptics.reject()
+                        }
+                        message = e
+                    }
                 }
             }
         }
@@ -131,6 +161,10 @@ fun BrowserScreen(viewModel: BrowserViewModel, onExit: () -> Unit, onOpenFile: (
         if (uri != null && p != null) viewModel.onExport(p.first, p.second, uri.toString())
         pendingExport = null
     }
+    val treePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
+        viewModel.onPickerClosed()
+        if (uri != null) viewModel.onExportSelected(uri.toString())
+    }
     val importPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
         viewModel.onPickerClosed()
         viewModel.onImport(uris.map { it.toString() })
@@ -142,7 +176,14 @@ fun BrowserScreen(viewModel: BrowserViewModel, onExit: () -> Unit, onOpenFile: (
         viewModel.onPickerOpening()
         importPicker.launch(arrayOf("*/*"))
     }
-    BackHandler(onBack = viewModel::onUp)
+    BackHandler {
+        val s = viewModel.uiState.value
+        when {
+            s.selecting -> viewModel.onClearSelection()
+            s.searchOpen -> viewModel.onToggleSearch()
+            else -> viewModel.onUp()
+        }
+    }
     val actions = remember(viewModel) {
         object : BrowserActions {
             override fun onUp() = viewModel.onUp()
@@ -180,6 +221,18 @@ fun BrowserScreen(viewModel: BrowserViewModel, onExit: () -> Unit, onOpenFile: (
             override fun onStartMove(entry: Entry) = viewModel.onStartMove(entry)
             override fun onMoveHere() = viewModel.onMoveHere()
             override fun onCancelMove() = viewModel.onCancelMove()
+            override fun onQuery(q: String) = viewModel.onQuery(q)
+            override fun onToggleSearch() = viewModel.onToggleSearch()
+            override fun onSort(order: SortOrder) = viewModel.onSort(order)
+            override fun onLayout(layout: BrowserLayout) = viewModel.onLayout(layout)
+            override fun onToggleSelect(name: String) = viewModel.onToggleSelect(name)
+            override fun onSelectAll() = viewModel.onSelectAll()
+            override fun onClearSelection() = viewModel.onClearSelection()
+            override fun onDeleteSelected() = viewModel.onDeleteSelected()
+            override fun onExportSelected() {
+                viewModel.onPickerOpening()
+                treePicker.launch(null)
+            }
         }
     }
     BrowserContent(state, snackbar, actions)
@@ -188,6 +241,7 @@ fun BrowserScreen(viewModel: BrowserViewModel, onExit: () -> Unit, onOpenFile: (
 @Composable
 private fun effectText(e: BrowserEffect): String = when (e) {
     is BrowserEffect.Exported -> stringResource(R.string.export_done, e.name)
+    is BrowserEffect.ExportedMany -> stringResource(R.string.export_many_done, e.count)
     is BrowserEffect.ExportFailed -> stringResource(R.string.export_failed, e.error.userMessage())
     is BrowserEffect.Failed -> e.error.userMessage()
     is BrowserEffect.Imported -> importText(e.result)
@@ -208,55 +262,54 @@ private sealed interface Dialog {
     data object NewFolder : Dialog
     data class Rename(val entry: Entry) : Dialog
     data class Delete(val entry: Entry) : Dialog
+    data class DeleteSelected(val count: Int) : Dialog
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun BrowserContent(state: BrowserUiState, snackbar: SnackbarHostState, actions: BrowserActions) {
     var dialog by remember { mutableStateOf<Dialog?>(null) }
-    var overflow by remember { mutableStateOf(false) }
+    // Sorting and filtering run outside composition of the rows, once per change.
+    val visible = remember(state.entries, state.query, state.sort) { state.visible }
+    val selectedFiles = remember(state.entries, state.selected) {
+        state.entries.any { !it.isDir && it.name in state.selected }
+    }
     Scaffold(
         topBar = {
             Column {
-                TopAppBar(
-                    title = { Text(state.label, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-                    navigationIcon = {
-                        IconButton(onClick = actions::onUp) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null) }
-                    },
-                    actions = {
-                        IconButton(onClick = actions::onLock) {
-                            Icon(Icons.Filled.Lock, contentDescription = stringResource(R.string.browser_lock))
-                        }
-                        if (state.writable) {
-                            Box {
-                                IconButton(onClick = { overflow = true }) { Icon(Icons.Filled.MoreVert, contentDescription = null) }
-                                DropdownMenu(expanded = overflow, onDismissRequest = { overflow = false }) {
-                                    DropdownMenuItem(
-                                        text = { Text(stringResource(R.string.browser_new_folder)) },
-                                        enabled = state.canEdit,
-                                        onClick = { overflow = false; dialog = Dialog.NewFolder },
-                                    )
-                                }
-                            }
-                        }
-                    },
-                )
+                if (state.selecting) {
+                    SelectionBar(
+                        count = state.selected.size,
+                        canExport = selectedFiles && state.exportProgress == null,
+                        canDelete = state.canEdit,
+                        onClear = actions::onClearSelection,
+                        onSelectAll = actions::onSelectAll,
+                        onExport = actions::onExportSelected,
+                        onDelete = { dialog = Dialog.DeleteSelected(state.selected.size) },
+                    )
+                } else {
+                    BrowserTopBar(state, actions) { dialog = Dialog.NewFolder }
+                }
                 Badges(state)
                 Breadcrumbs(state.breadcrumbs, actions::onBreadcrumb)
-                state.exportProgress?.let { LinearProgressIndicator(progress = { it }, modifier = Modifier.fillMaxWidth()) }
-                if (state.busy) LinearProgressIndicator(Modifier.fillMaxWidth())
+                if (state.busy) androidx.compose.material3.LinearProgressIndicator(Modifier.fillMaxWidth())
+                state.exportProgress?.let {
+                    ProgressCard(
+                        stringResource(R.string.export_running),
+                        "${(it * 100).toInt()} %",
+                        it,
+                        onStop = null,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                    )
+                }
                 state.transfer?.let { t ->
-                    Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            stringResource(R.string.import_progress, t.name, t.index, t.total) + " · " + humanSize(t.bytes),
-                            Modifier.weight(1f),
-                            style = MaterialTheme.typography.bodySmall,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                        TextButton(onClick = actions::onCancelImport) { Text(stringResource(R.string.import_stop)) }
-                    }
-                    LinearProgressIndicator(Modifier.fillMaxWidth().testTag("import_progress"))
+                    ProgressCard(
+                        t.name,
+                        stringResource(R.string.import_progress, t.name, t.index, t.total) + " · " + humanSize(t.bytes),
+                        null,
+                        onStop = actions::onCancelImport,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp).testTag("import_progress"),
+                    )
                 }
             }
         },
@@ -278,31 +331,59 @@ fun BrowserContent(state: BrowserUiState, snackbar: SnackbarHostState, actions: 
             }
         },
         floatingActionButton = {
-            if (state.writable && state.transfer == null && state.moving == null) {
+            if (state.writable && state.transfer == null && state.moving == null && !state.selecting) {
                 ExtendedFloatingActionButton(
                     onClick = actions::onImport,
                     icon = { Icon(Icons.Filled.Add, contentDescription = null) },
                     text = { Text(stringResource(R.string.browser_import)) },
+                    containerColor = MaterialTheme.colorScheme.tertiary,
+                    contentColor = MaterialTheme.colorScheme.onTertiary,
                 )
             }
         },
         snackbarHost = { SnackbarHost(snackbar) },
     ) { padding ->
         Box(Modifier.fillMaxSize().padding(padding)) {
+            val writable = state.canEdit && state.moving == null
+            val rename = { e: Entry -> dialog = Dialog.Rename(e) }
+            val delete = { e: Entry -> dialog = Dialog.Delete(e) }
             when {
-                state.loading && state.entries.isEmpty() -> CircularProgressIndicator(Modifier.align(Alignment.Center))
+                state.loading && state.entries.isEmpty() -> LoadingIndicator(Modifier.align(Alignment.Center))
                 state.error != null -> Text(state.error.userMessage(), Modifier.align(Alignment.Center).padding(24.dp))
-                state.entries.isEmpty() -> Text(stringResource(R.string.browser_empty), Modifier.align(Alignment.Center))
-                else -> LazyColumn(Modifier.fillMaxSize()) {
-                    items(state.entries, key = { it.name }) { e ->
-                        EntryRow(
-                            e,
-                            writable = state.canEdit && state.moving == null,
-                            actions = actions,
-                            onRename = { dialog = Dialog.Rename(e) },
-                            onDelete = { dialog = Dialog.Delete(e) },
+                state.entries.isEmpty() -> EmptyState(
+                    CofferIcons.FolderOpen,
+                    stringResource(R.string.browser_empty),
+                    if (state.writable) stringResource(R.string.browser_empty_body) else "",
+                    Modifier.align(Alignment.Center),
+                )
+                visible.isEmpty() -> Text(
+                    stringResource(R.string.browser_no_results),
+                    Modifier.align(Alignment.Center).padding(24.dp),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                state.layout == BrowserLayout.Grid -> LazyVerticalGrid(
+                    GridCells.Adaptive(104.dp),
+                    Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(12.dp, 8.dp, 12.dp, 112.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    items(visible, key = { it.name }) { e ->
+                        FileTile(
+                            e, e.name in state.selected, state.selecting, writable, actions,
+                            onRename = { rename(e) }, onDelete = { delete(e) },
+                            modifier = Modifier.animateItem(),
                         )
-                        HorizontalDivider()
+                    }
+                }
+                else -> LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 112.dp)) {
+                    items(visible, key = { it.name }) { e ->
+                        FileRow(
+                            e, e.name in state.selected, state.selecting, writable, actions,
+                            onRename = { rename(e) }, onDelete = { delete(e) },
+                            modifier = Modifier.animateItem(),
+                        )
+                        HorizontalDivider(color = MaterialTheme.colorScheme.surfaceContainerHigh)
                     }
                 }
             }
@@ -317,34 +398,146 @@ fun BrowserContent(state: BrowserUiState, snackbar: SnackbarHostState, actions: 
             dialog = null
             actions.onRename(d.entry, it)
         }
-        is Dialog.Delete -> AlertDialog(
-            onDismissRequest = { dialog = null },
-            title = { Text(stringResource(R.string.browser_delete_title, d.entry.name)) },
-            text = { Text(stringResource(R.string.browser_delete_body)) },
-            confirmButton = {
-                TextButton(onClick = { dialog = null; actions.onDelete(d.entry) }) {
-                    Text(stringResource(R.string.browser_delete), color = MaterialTheme.colorScheme.error)
-                }
-            },
-            dismissButton = { TextButton(onClick = { dialog = null }) { Text(stringResource(R.string.browser_cancel)) } },
-        )
+        is Dialog.Delete -> DeleteDialog(stringResource(R.string.browser_delete_title, d.entry.name), { dialog = null }) {
+            dialog = null
+            actions.onDelete(d.entry)
+        }
+        is Dialog.DeleteSelected -> DeleteDialog(stringResource(R.string.selection_delete_title, d.count), { dialog = null }) {
+            dialog = null
+            actions.onDeleteSelected()
+        }
         null -> Unit
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun BrowserTopBar(state: BrowserUiState, actions: BrowserActions, onNewFolder: () -> Unit) {
+    var overflow by remember { mutableStateOf(false) }
+    var sortMenu by remember { mutableStateOf(false) }
+    TopAppBar(
+        title = {
+            if (state.searchOpen) {
+                val focus = remember { FocusRequester() }
+                TextField(
+                    value = state.query,
+                    onValueChange = actions::onQuery,
+                    placeholder = { Text(stringResource(R.string.browser_search), maxLines = 1) },
+                    singleLine = true,
+                    shape = MaterialTheme.shapes.extraLarge,
+                    colors = TextFieldDefaults.colors(
+                        focusedIndicatorColor = Color.Transparent,
+                        unfocusedIndicatorColor = Color.Transparent,
+                    ),
+                    modifier = Modifier.fillMaxWidth().focusRequester(focus),
+                )
+                LaunchedEffect(Unit) { focus.requestFocus() }
+            } else {
+                Text(state.label, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+        },
+        navigationIcon = {
+            IconButton(onClick = actions::onUp) {
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.action_back))
+            }
+        },
+        actions = {
+            IconButton(onClick = actions::onToggleSearch) {
+                if (state.searchOpen) {
+                    Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.browser_search_close))
+                } else {
+                    Icon(Icons.Filled.Search, contentDescription = stringResource(R.string.browser_search))
+                }
+            }
+            AnimatedVisibility(!state.searchOpen) {
+                Row {
+                    IconButton(onClick = actions::onLock) {
+                        Icon(Icons.Filled.Lock, contentDescription = stringResource(R.string.browser_lock))
+                    }
+                    Box {
+                        IconButton(onClick = { overflow = true }) {
+                            Icon(Icons.Filled.MoreVert, contentDescription = stringResource(R.string.action_more))
+                        }
+                        val grid = state.layout == BrowserLayout.Grid
+                        DropdownMenu(expanded = overflow, onDismissRequest = { overflow = false }) {
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.browser_sort)) },
+                                leadingIcon = { Icon(CofferIcons.Sort, contentDescription = null) },
+                                onClick = { overflow = false; sortMenu = true },
+                            )
+                            DropdownMenuItem(
+                                text = { Text(stringResource(if (grid) R.string.browser_view_list else R.string.browser_view_grid)) },
+                                leadingIcon = { Icon(if (grid) CofferIcons.ViewList else CofferIcons.GridView, contentDescription = null) },
+                                onClick = {
+                                    overflow = false
+                                    actions.onLayout(if (grid) BrowserLayout.List else BrowserLayout.Grid)
+                                },
+                            )
+                            if (state.writable) {
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.browser_new_folder)) },
+                                    leadingIcon = { Icon(CofferIcons.NewFolder, contentDescription = null) },
+                                    enabled = state.canEdit,
+                                    onClick = { overflow = false; onNewFolder() },
+                                )
+                            }
+                        }
+                        SortMenu(sortMenu, state.sort, { sortMenu = false }, actions::onSort)
+                    }
+                }
+            }
+        },
+    )
+}
+
+@Composable
+private fun SortMenu(expanded: Boolean, current: SortOrder, onDismiss: () -> Unit, onSort: (SortOrder) -> Unit) {
+    DropdownMenu(expanded = expanded, onDismissRequest = onDismiss) {
+        listOf(SortKey.Name to R.string.sort_name, SortKey.Modified to R.string.sort_modified, SortKey.Size to R.string.sort_size)
+            .forEach { (key, label) ->
+                DropdownMenuItem(
+                    text = { Text(stringResource(label)) },
+                    leadingIcon = { if (current.key == key) Icon(Icons.Filled.Check, contentDescription = null) },
+                    onClick = { onSort(current.copy(key = key)); onDismiss() },
+                )
+            }
+        HorizontalDivider()
+        listOf(true to R.string.sort_ascending, false to R.string.sort_descending).forEach { (asc, label) ->
+            DropdownMenuItem(
+                text = { Text(stringResource(label)) },
+                leadingIcon = { if (current.ascending == asc) Icon(Icons.Filled.Check, contentDescription = null) },
+                onClick = { onSort(current.copy(ascending = asc)); onDismiss() },
+            )
+        }
+    }
+}
+
+@Composable
+private fun DeleteDialog(title: String, onDismiss: () -> Unit, onConfirm: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title) },
+        text = { Text(stringResource(R.string.browser_delete_body)) },
+        confirmButton = {
+            TextButton(onClick = onConfirm) {
+                Text(stringResource(R.string.browser_delete), color = MaterialTheme.colorScheme.error)
+            }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.browser_cancel)) } },
+    )
+}
+
 @Composable
 private fun Badges(state: BrowserUiState) {
-    state.freeBytes?.let {
-        Text(
-            stringResource(R.string.browser_free, humanSize(it)),
-            Modifier.padding(horizontal = 16.dp),
-            style = MaterialTheme.typography.bodySmall,
-        )
+    val chips = buildList {
+        state.freeBytes?.let { add(stringResource(R.string.browser_free, humanSize(it))) }
+        if (!state.writable) add(stringResource(R.string.browser_read_only))
+        if (state.hiddenProtected) add(stringResource(R.string.browser_hidden_protected))
     }
-    if (state.writable && !state.hiddenProtected) return
-    Row(Modifier.padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        if (!state.writable) AssistChip(onClick = {}, label = { Text(stringResource(R.string.browser_read_only)) })
-        if (state.hiddenProtected) AssistChip(onClick = {}, label = { Text(stringResource(R.string.browser_hidden_protected)) })
+    if (chips.isNotEmpty()) {
+        Row(Modifier.padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            chips.forEach { AssistChip(onClick = {}, label = { Text(it, style = MaterialTheme.typography.labelMedium) }) }
+        }
     }
     if (state.writeDenied) {
         Text(
@@ -381,59 +574,24 @@ private fun NameDialog(title: String, initial: String, onDismiss: () -> Unit, on
     )
 }
 
+/** Path as scrollable chips; the first one is the volume root. */
 @Composable
 private fun Breadcrumbs(parts: List<String>, onClick: (Int) -> Unit) {
-    Row(
-        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
+    if (parts.isEmpty()) return
+    LazyRow(
+        Modifier.fillMaxWidth(),
+        contentPadding = PaddingValues(horizontal = 16.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        TextButton(onClick = { onClick(-1) }) { Text("/") }
-        parts.forEachIndexed { i, p ->
-            Icon(Icons.Filled.KeyboardArrowRight, contentDescription = null)
-            TextButton(onClick = { onClick(i) }) { Text(p, maxLines = 1) }
+        item { FilterChip(selected = false, onClick = { onClick(-1) }, label = { Text("/") }) }
+        itemsIndexed(parts) { i, p ->
+            FilterChip(
+                selected = i == parts.lastIndex,
+                onClick = { onClick(i) },
+                label = { Text(p, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+            )
         }
     }
-}
-
-@Composable
-private fun EntryRow(
-    e: Entry,
-    writable: Boolean,
-    actions: BrowserActions,
-    onRename: () -> Unit,
-    onDelete: () -> Unit,
-) {
-    var menu by rememberSaveable { mutableStateOf(false) }
-    val hasMenu = !e.isDir || writable
-    ListItem(
-        modifier = Modifier.combinedClickable(onClick = { actions.onOpen(e) }, onLongClick = { if (hasMenu) menu = true }),
-        leadingContent = { FileIcon(e) },
-        headlineContent = { Text(e.name, maxLines = 2, overflow = TextOverflow.Ellipsis) },
-        supportingContent = {
-            if (!e.isDir) {
-                val date = e.modified?.let { DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT).format(Date(it * 1000)) }
-                Text(listOfNotNull(humanSize(e.size), date).joinToString(" · "), style = MaterialTheme.typography.bodySmall)
-            }
-        },
-        trailingContent = {
-            if (hasMenu) {
-                Box {
-                    IconButton(onClick = { menu = true }) { Icon(Icons.Filled.MoreVert, contentDescription = null) }
-                    DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
-                        if (!e.isDir) {
-                            DropdownMenuItem(text = { Text(stringResource(R.string.browser_open_with)) }, onClick = { menu = false; actions.onOpenWith(e) })
-                            DropdownMenuItem(text = { Text(stringResource(R.string.browser_export)) }, onClick = { menu = false; actions.onExport(e) })
-                        }
-                        if (writable) {
-                            DropdownMenuItem(text = { Text(stringResource(R.string.browser_rename)) }, onClick = { menu = false; onRename() })
-                            DropdownMenuItem(text = { Text(stringResource(R.string.browser_move)) }, onClick = { menu = false; actions.onStartMove(e) })
-                            DropdownMenuItem(text = { Text(stringResource(R.string.browser_delete)) }, onClick = { menu = false; onDelete() })
-                        }
-                    }
-                }
-            }
-        },
-    )
 }
 
 fun humanSize(bytes: Long): String {

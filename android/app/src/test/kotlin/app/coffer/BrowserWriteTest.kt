@@ -232,6 +232,70 @@ class BrowserWriteTest {
         assertEquals(0, guard.held.value)
     }
 
+    @Test
+    fun delete_selected_removes_all_and_clears_selection() = runTest {
+        val h = WritableHandle()
+        h.files["/a.txt"] = byteArrayOf(1); h.files["/b.txt"] = byteArrayOf(2); h.files["/keep.txt"] = byteArrayOf(3)
+        val e = env(h)
+        e.vm.onToggleSelect("a.txt")
+        e.vm.onToggleSelect("b.txt")
+        assertEquals(setOf("a.txt", "b.txt"), e.vm.uiState.value.selected)
+        e.vm.onDeleteSelected()
+        advanceUntilIdle()
+        assertEquals(listOf("keep.txt"), names(e))
+        assertTrue(e.vm.uiState.value.selected.isEmpty())
+    }
+
+    @Test
+    fun delete_selected_blocked_during_import() = runTest {
+        val h = WritableHandle()
+        h.files["/keep.txt"] = byteArrayOf(3)
+        val sm = SessionManager(FakeStore(ref), FakeNative(handle = { h }), FakeOpener(), StandardTestDispatcher(testScheduler), { 1L shl 30 })
+        sm.unlock(ref, UnlockRequest("secret".toCharArray(), 0, emptyList(), null, writable = true), sm.newCancel())
+        var vm: BrowserViewModel? = null
+        var sawTransfer = false
+        val src = object : app.coffer.transfer.ImportSource {
+            override fun displayName(uri: String) = "in.bin"
+            override fun openInput(uri: String) = object : java.io.InputStream() {
+                var first = true
+                override fun read() = -1
+                override fun read(b: ByteArray, off: Int, len: Int): Int {
+                    if (!first) return -1
+                    first = false
+                    val v = vm!!
+                    sawTransfer = v.uiState.value.transfer != null
+                    v.onToggleSelect("keep.txt")
+                    v.onDeleteSelected()
+                    b[off] = 1
+                    return 1
+                }
+            }
+        }
+        val guard = LockGuard()
+        val transfers = TransferManager(sm, src, guard, StandardTestDispatcher(testScheduler), this)
+        vm = BrowserViewModel("v1", sm, FakeExporter(), StandardTestDispatcher(testScheduler), transfers, guard)
+        advanceUntilIdle()
+        vm.onImport(listOf("content://d/in.bin"))
+        advanceUntilIdle()
+        assertTrue(sawTransfer)
+        assertTrue("/keep.txt" in h.files)
+    }
+
+    @Test
+    fun navigating_clears_selection_and_query() = runTest {
+        val h = WritableHandle()
+        h.dirs += "/sub"
+        h.files["/a.txt"] = byteArrayOf(1)
+        val e = env(h)
+        e.vm.onToggleSelect("a.txt")
+        e.vm.onQuery("a")
+        e.vm.onOpen(app.coffer.data.Entry("sub", true, 0, null))
+        advanceUntilIdle()
+        assertEquals("/sub", e.vm.uiState.value.path)
+        assertTrue(e.vm.uiState.value.selected.isEmpty())
+        assertEquals("", e.vm.uiState.value.query)
+    }
+
     /** Review I3: "Lock all" during an import stops it first: no truncated file stays. */
     @Test
     fun lock_all_during_import_leaves_no_partial_file() = kotlinx.coroutines.runBlocking {
