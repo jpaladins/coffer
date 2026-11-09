@@ -211,4 +211,7 @@
     <string name="browser_no_results">Nessun risultato in questa cartella</string>
     <string name="browser_empty_body">Importa file con il pulsante in basso.</string>
     <string name="browser_more">Altre opzioni per %1$s</string>
+    <string name="unlock_advanced">Opzioni avanzate</string>
+    <string name="unlock_advanced_summary">PIM, keyfile, derivazione della chiave, sola lettura</string>
+    <string name="unlock_remove_keyfile">Rimuovi %1$s</string>
 </resources>

@@ -216,4 +216,7 @@
     <string name="browser_no_results">No matches in this folder</string>
     <string name="browser_empty_body">Import files with the button below.</string>
     <string name="browser_more">More options for %1$s</string>
+    <string name="unlock_advanced">Advanced options</string>
+    <string name="unlock_advanced_summary">PIM, keyfiles, key derivation, read-only</string>
+    <string name="unlock_remove_keyfile">Remove %1$s</string>
 </resources>
