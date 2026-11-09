@@ -5,6 +5,7 @@ ksp = "2.3.13"
 hilt = "2.60.1"
 hiltNavigationCompose = "1.4.0"
 composeBom = "2026.09.00"
+material3 = "1.5.0-rc01"
 activityCompose = "1.13.0"
 lifecycle = "2.11.0"
 navigation = "2.10.2"
@@ -33,7 +34,8 @@ compose-bom = { module = "androidx.compose:compose-bom", version.ref = "composeB
 compose-ui = { module = "androidx.compose.ui:ui" }
 compose-ui-tooling-preview = { module = "androidx.compose.ui:ui-tooling-preview" }
 compose-ui-tooling = { module = "androidx.compose.ui:ui-tooling" }
-compose-material3 = { module = "androidx.compose.material3:material3" }
+# Expressive components (MaterialExpressiveTheme, MaterialShapes, wavy and loading indicators) are public from 1.5.
+compose-material3 = { module = "androidx.compose.material3:material3", version.ref = "material3" }
 compose-material-icons = { module = "androidx.compose.material:material-icons-core" }
 compose-ui-test-junit4 = { module = "androidx.compose.ui:ui-test-junit4" }
 compose-ui-test-manifest = { module = "androidx.compose.ui:ui-test-manifest" }

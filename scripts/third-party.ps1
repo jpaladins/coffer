@@ -70,6 +70,13 @@ foreach ($k in ($libs.Keys | Sort-Object)) {
     $lines.Add("| $k | $($libs[$k]) | $lic |")
 }
 
+$lines.Add('')
+$lines.Add('## Fonts')
+$lines.Add('')
+$lines.Add('| Font | Source | License |')
+$lines.Add('|---|---|---|')
+$lines.Add('| Manrope (variable) | github.com/sharanda/manrope | OFL-1.1 (legal/OFL-Manrope.txt) |')
+
 $text = ($lines -join "`n") + "`n"
 $utf8 = New-Object Text.UTF8Encoding $false
 [IO.File]::WriteAllText((Join-Path $root 'legal\THIRD_PARTY.md'), $text, $utf8)

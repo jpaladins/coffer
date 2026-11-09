@@ -127,8 +127,8 @@ Coffer is free software under the GNU General Public License v3.0 or later. It i
 | androidx.compose.material:material-icons-core-android | 1.7.8 | Apache-2.0 |
 | androidx.compose.material:material-ripple | 1.12.1 | Apache-2.0 |
 | androidx.compose.material:material-ripple-android | 1.12.1 | Apache-2.0 |
-| androidx.compose.material3:material3 | 1.4.0 | Apache-2.0 |
-| androidx.compose.material3:material3-android | 1.4.0 | Apache-2.0 |
+| androidx.compose.material3:material3 | 1.5.0-rc01 | Apache-2.0 |
+| androidx.compose.material3:material3-android | 1.5.0-rc01 | Apache-2.0 |
 | androidx.compose.runtime:runtime | 1.12.1 | Apache-2.0 |
 | androidx.compose.runtime:runtime-android | 1.12.1 | Apache-2.0 |
 | androidx.compose.runtime:runtime-annotation | 1.12.1 | Apache-2.0 |
@@ -253,3 +253,9 @@ Coffer is free software under the GNU General Public License v3.0 or later. It i
 | org.jetbrains.kotlinx:kotlinx-serialization-json-jvm | 1.12.0 | Apache-2.0 |
 | org.jetbrains:annotations | 23.0.0 | Apache-2.0 |
 | org.jspecify:jspecify | 1.0.0 | Apache-2.0 |
+
+## Fonts
+
+| Font | Source | License |
+|---|---|---|
+| Manrope (variable) | github.com/sharanda/manrope | OFL-1.1 (legal/OFL-Manrope.txt) |
