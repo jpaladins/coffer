@@ -214,4 +214,13 @@
     <string name="unlock_advanced">Opzioni avanzate</string>
     <string name="unlock_advanced_summary">PIM, keyfile, derivazione della chiave, sola lettura</string>
     <string name="unlock_remove_keyfile">Rimuovi %1$s</string>
+    <string name="create_step_location">Posizione</string>
+    <string name="create_step_size">Dimensione</string>
+    <string name="create_step_password">Password</string>
+    <string name="create_step_review">Riepilogo</string>
+    <string name="create_eta">Circa %1$s rimanenti</string>
+    <string name="create_review_hint">Controlla le impostazioni, poi crea il container.</string>
+    <string name="create_remove_keyfile">Rimuovi %1$s</string>
+    <string name="create_strength_label">Robustezza della password: %1$s</string>
+    <string name="create_none">Nessuno</string>
 </resources>

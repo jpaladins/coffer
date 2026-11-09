@@ -80,6 +80,55 @@ class CreateViewModelTest {
     }
 
     @Test
+    fun next_blocked_until_location_valid() = runTest {
+        val vm = env().vm
+        assertEquals(app.coffer.create.CreateStep.Location, vm.uiState.value.step)
+        vm.onNext()
+        assertEquals(app.coffer.create.CreateStep.Location, vm.uiState.value.step)
+        vm.onLocationPicked("content://d/Coffer.hc")
+        vm.onNext()
+        assertEquals(app.coffer.create.CreateStep.Size, vm.uiState.value.step)
+        vm.onSizeChange("1")
+        vm.onNext()
+        assertEquals(app.coffer.create.CreateStep.Size, vm.uiState.value.step)
+        vm.onSizeChange("64")
+        vm.onNext()
+        assertEquals(app.coffer.create.CreateStep.Password, vm.uiState.value.step)
+    }
+
+    @Test
+    fun next_blocked_when_passwords_differ() = runTest {
+        val vm = env().vm
+        vm.ready()
+        vm.onNext()
+        vm.onNext()
+        vm.onNext("pw".toCharArray(), "px".toCharArray())
+        assertEquals(app.coffer.create.CreateStep.Password, vm.uiState.value.step)
+        vm.onNext("pw".toCharArray(), "pw".toCharArray())
+        assertEquals(app.coffer.create.CreateStep.Review, vm.uiState.value.step)
+    }
+
+    @Test
+    fun back_from_review_keeps_values() = runTest {
+        val vm = env().vm
+        vm.ready()
+        vm.onCipherChange("Serpent")
+        vm.onNext()
+        vm.onNext()
+        vm.onNext("pw".toCharArray(), "pw".toCharArray())
+        assertTrue(vm.onBack())
+        assertEquals(app.coffer.create.CreateStep.Password, vm.uiState.value.step)
+        assertTrue(vm.onBack())
+        assertTrue(vm.onBack())
+        assertEquals(app.coffer.create.CreateStep.Location, vm.uiState.value.step)
+        assertFalse(vm.onBack())
+        val s = vm.uiState.value
+        assertEquals("64", s.sizeText)
+        assertEquals("Serpent", s.cipher)
+        assertEquals("content://d/Coffer.hc", s.locationUri)
+    }
+
+    @Test
     fun create_disabled_until_valid() = runTest {
         val vm = env().vm
         assertEquals(Blocker.NO_LOCATION, vm.blocker("pw".toCharArray(), "pw".toCharArray()))

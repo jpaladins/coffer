@@ -24,6 +24,8 @@ import kotlinx.coroutines.launch
 const val MIN_FAT_BYTES = 1L shl 20
 const val MIN_EXFAT_BYTES = 4L shl 20
 
+enum class CreateStep { Location, Size, Password, Review }
+
 enum class Blocker { NO_LOCATION, SIZE_INVALID, SIZE_TOO_SMALL, SIZE_TOO_LARGE, NO_PASSWORD, PASSWORD_MISMATCH }
 
 sealed interface CreatePhase {
@@ -53,6 +55,7 @@ data class CreateUiState(
     val ciphers: List<String> = listOf("AES"),
     val prfs: List<String> = listOf("SHA-512"),
     val phase: CreatePhase = CreatePhase.Idle,
+    val step: CreateStep = CreateStep.Location,
 ) {
     val busy: Boolean get() = phase is CreatePhase.Creating
     val sizeBytes: Long?
@@ -117,6 +120,39 @@ class CreateViewModel @Inject constructor(
         _uiState.update { it.copy(entropyBytes = entropy.size) }
     }
 
+    /** Why the current step cannot be left forward, or null. Wipes nothing. */
+    fun stepBlocker(step: CreateStep, password: CharArray, confirm: CharArray): Blocker? {
+        val b = blocker(password, confirm) ?: return null
+        val owner = when (b) {
+            Blocker.NO_LOCATION -> CreateStep.Location
+            Blocker.SIZE_INVALID, Blocker.SIZE_TOO_SMALL, Blocker.SIZE_TOO_LARGE -> CreateStep.Size
+            Blocker.NO_PASSWORD, Blocker.PASSWORD_MISMATCH -> CreateStep.Password
+        }
+        return b.takeIf { owner.ordinal <= step.ordinal }
+    }
+
+    /**
+     * Goes to the next step when the current one is valid. On the password step
+     * the caller passes copies of both fields; they are wiped here.
+     */
+    fun onNext(password: CharArray = CharArray(0), confirm: CharArray = CharArray(0)) {
+        val step = _uiState.value.step
+        val ok = step != CreateStep.Review && stepBlocker(step, password, confirm).let { b ->
+            b == null || (step != CreateStep.Password && b in setOf(Blocker.NO_PASSWORD, Blocker.PASSWORD_MISMATCH))
+        }
+        password.fill('\u0000')
+        confirm.fill('\u0000')
+        if (ok) _uiState.update { it.copy(step = CreateStep.entries[step.ordinal + 1]) }
+    }
+
+    /** Back one step; false on the first step (the screen closes). Values stay. */
+    fun onBack(): Boolean {
+        val s = _uiState.value
+        if (s.busy || s.step == CreateStep.Location) return false
+        _uiState.update { it.copy(step = CreateStep.entries[s.step.ordinal - 1]) }
+        return true
+    }
+
     /** Why "Create" is disabled, or null when the form is complete. */
     fun blocker(password: CharArray, confirm: CharArray): Blocker? {
         val s = _uiState.value
@@ -162,9 +198,11 @@ class CreateViewModel @Inject constructor(
                 _effects.send(CreateEffect.Opened(session.ref.id))
             } catch (_: CofferException.Cancelled) {
                 // The document was deleted: a new location must be chosen.
-                _uiState.update { it.copy(phase = CreatePhase.Idle, locationUri = null, locationName = "") }
+                _uiState.update { it.copy(phase = CreatePhase.Idle, locationUri = null, locationName = "", step = CreateStep.Location) }
             } catch (e: CofferException) {
-                _uiState.update { it.copy(phase = CreatePhase.Error(e), locationUri = null, locationName = "") }
+                _uiState.update {
+                    it.copy(phase = CreatePhase.Error(e), locationUri = null, locationName = "", step = CreateStep.Location)
+                }
             } finally {
                 password.fill('\u0000')
                 req.extraEntropy.fill(0)

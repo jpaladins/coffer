@@ -219,4 +219,13 @@
     <string name="unlock_advanced">Advanced options</string>
     <string name="unlock_advanced_summary">PIM, keyfiles, key derivation, read-only</string>
     <string name="unlock_remove_keyfile">Remove %1$s</string>
+    <string name="create_step_location">Location</string>
+    <string name="create_step_size">Size</string>
+    <string name="create_step_password">Password</string>
+    <string name="create_step_review">Review</string>
+    <string name="create_eta">About %1$s left</string>
+    <string name="create_review_hint">Check the settings, then create the container.</string>
+    <string name="create_remove_keyfile">Remove %1$s</string>
+    <string name="create_strength_label">Password strength: %1$s</string>
+    <string name="create_none">None</string>
 </resources>
