@@ -101,6 +101,8 @@ class ThemeContrastTest {
 - `@Composable fun rememberHaptics(): Haptics` con `confirm()` e `reject()`, che usano `HapticFeedbackConstants.CONFIRM`/`REJECT` da API 30 e `LONG_PRESS` sotto.
 - `Modifier.pressScale()`: scala a 0,96 alla pressione con la molla `MotionScheme.fastSpatialSpec`; non fa nulla se le animazioni sono disattivate.
 
+- `CofferNavHost`: `enterTransition`/`exitTransition` globali con scorrimento orizzontale di 1/4 larghezza e dissolvenza (`MotionScheme.defaultSpatialSpec`); `EnterTransition.None` se le animazioni sono disattivate.
+
 - [ ] **Passo 1: test che fallisce**
 
 ```kotlin
