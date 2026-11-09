@@ -68,7 +68,9 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.editableText
 import androidx.compose.ui.semantics.onClick
@@ -385,6 +387,8 @@ private fun SwitchRow(label: String, checked: Boolean, enabled: Boolean, onChang
 private fun SecretField(state: TextFieldState, label: String, enabled: Boolean, onDone: (() -> Unit)? = null) {
     val focus = remember { FocusRequester() }
     var visible by remember { mutableStateOf(false) }
+    // The trailing toggle is hidden by clearAndSetSemantics below; offer it as an action instead.
+    val toggleLabel = stringResource(if (visible) R.string.unlock_hide_password else R.string.unlock_show_password)
     OutlinedSecureTextField(
         state = state,
         label = { Text(label) },
@@ -407,6 +411,7 @@ private fun SecretField(state: TextFieldState, label: String, enabled: Boolean, 
                 password()
                 editableText = AnnotatedString("•".repeat(state.text.length))
                 onClick { focus.requestFocus(); true }
+                customActions = listOf(CustomAccessibilityAction(toggleLabel) { visible = !visible; true })
             },
         // Password keyboard: no suggestions, no learning, no autocorrect.
         keyboardOptions = KeyboardOptions(

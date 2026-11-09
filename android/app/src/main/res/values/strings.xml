@@ -247,4 +247,5 @@
         <item quantity="one">%1$d digit entered</item>
         <item quantity="other">%1$d digits entered</item>
     </plurals>
+    <string name="viewer_toggle_controls">Show or hide controls</string>
 </resources>

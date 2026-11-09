@@ -29,7 +29,9 @@ import app.coffer.onboarding.shouldShowOnboarding
 import app.coffer.settings.UiPrefs
 import app.coffer.data.VaultRef
 import app.coffer.data.VaultStore
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import app.coffer.security.AppLock
 import app.coffer.security.AppLockMode
 import app.coffer.security.LockScreen
@@ -75,6 +77,9 @@ class MainActivity : FragmentActivity() {
         setContent {
             CofferTheme {
                 val nav = rememberNavController()
+                // Chosen once, above the lock: the graph must keep the same start while
+                // the lock screen comes and goes, or the back stack would be reset.
+                var start by rememberSaveable { mutableStateOf<String?>(null) }
                 val locked by appLock.isLocked.collectAsStateWithLifecycle()
                 val ready by appLock.ready.collectAsStateWithLifecycle()
                 val covered by appLock.covered.collectAsStateWithLifecycle()
@@ -92,14 +97,14 @@ class MainActivity : FragmentActivity() {
                     if (d == null || v == null) {
                         Surface(Modifier.fillMaxSize()) {}
                     } else {
-                        val start = remember { if (shouldShowOnboarding(d, v.size)) Routes.ONBOARDING else Routes.VAULTS }
+                        val route = start ?: (if (shouldShowOnboarding(d, v.size)) Routes.ONBOARDING else Routes.VAULTS).also { start = it }
                         // Updated from 0.0.1a with containers: never show it later either.
                         LaunchedEffect(d, v.isEmpty()) { if (!d && v.isNotEmpty()) uiPrefs.setOnboardingDone() }
                         // The notification request comes after the onboarding.
                         if (d) LaunchedEffect(Unit) { if (!e2e) askNotificationsOnce() }
                         CofferNavHost(
                             sessions.openIds, settings, appLock, remembered.isAvailable(), nav,
-                            startDestination = start,
+                            startDestination = route,
                             onOnboardingDone = { lifecycleScope.launch { uiPrefs.setOnboardingDone() } },
                             uiPrefs = uiPrefs,
                         )

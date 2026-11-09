@@ -8,6 +8,7 @@ import app.coffer.data.MAX_IO
 import app.coffer.data.SessionManager
 import java.io.ByteArrayOutputStream
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
@@ -45,41 +46,51 @@ class ThumbnailLoader(
     /** At most two decodes at once: they are the memory-heavy part. */
     private val gate = Semaphore(2)
 
-    fun cached(vaultId: String, path: String): ImageBitmap? = cache.get(vaultId, path)
-
-    suspend fun load(vaultId: String, path: String, size: Long, targetPx: Int): ImageBitmap? {
+    suspend fun load(vaultId: String, path: String, size: Long, targetPx: Int, modified: Long? = null): ImageBitmap? {
         if (size > THUMB_MAX_FILE || !isThumbnailable(path)) return null
-        cache.get(vaultId, path)?.let { return it }
+        val version = "$size:$modified"
+        cache.get(vaultId, path, version)?.let { return it }
+        val generation = cache.generation(vaultId)
         val handle = sessions.session(vaultId)?.handle ?: return null
         return gate.withPermit {
             withContext(io) {
                 var bytes: ByteArray? = null
+                var out: ByteArrayOutputStream? = null
                 try {
-                    val out = ByteArrayOutputStream(size.toInt().coerceIn(0, MAX_IO))
+                    val buffer = WipeableBuffer(size.toInt().coerceIn(0, MAX_IO)).also { out = it }
                     var off = 0L
                     while (true) {
                         val chunk = handle.read(path, off, MAX_IO)
                         if (chunk.isEmpty()) break
-                        out.write(chunk)
+                        buffer.write(chunk)
                         chunk.fill(0)
                         off += chunk.size
+                        ensureActive()
                     }
-                    bytes = out.toByteArray()
+                    bytes = buffer.toByteArray()
                     if (!stillOpen(vaultId, handle)) return@withContext null
                     val bmp = decode(bytes, targetPx) ?: return@withContext null
                     // Locked while decoding: drop it, the cache was already cleared.
                     if (!stillOpen(vaultId, handle)) return@withContext null
-                    cache.put(vaultId, path, bmp)
+                    if (!cache.putIfCurrent(vaultId, path, version, bmp, generation)) return@withContext null
                     bmp
+                } catch (e: kotlinx.coroutines.CancellationException) {
+                    throw e
                 } catch (_: Exception) {
                     null
                 } catch (_: OutOfMemoryError) {
                     null
                 } finally {
                     bytes?.fill(0)
+                    (out as? WipeableBuffer)?.wipe()
                 }
             }
         }
+    }
+
+    /** Lets the internal buffer be zeroed: it holds the plaintext photo. */
+    private class WipeableBuffer(size: Int) : ByteArrayOutputStream(size) {
+        fun wipe() = buf.fill(0)
     }
 
     private fun stillOpen(vaultId: String, handle: Any) = sessions.session(vaultId)?.handle === handle

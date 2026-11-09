@@ -249,4 +249,5 @@
         <item quantity="many">%1$d cifre inserite</item>
         <item quantity="other">%1$d cifre inserite</item>
     </plurals>
+    <string name="viewer_toggle_controls">Mostra o nascondi i comandi</string>
 </resources>

@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package app.coffer.settings
 
+import app.coffer.security.isValidPin
+import app.coffer.security.MAX_PIN
+import androidx.compose.foundation.text.input.InputTransformation
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -190,7 +193,7 @@ private fun PinDialog(onDismiss: () -> Unit, onSet: (CharArray) -> Unit) {
     val first = remember { TextFieldState() }
     val second = remember { TextFieldState() }
     // Compared in place: no String copy of the PIN is made.
-    val ok = first.text.length >= MIN_PIN && first.text.length == second.text.length &&
+    val ok = isValidPin(first.text) && first.text.length == second.text.length &&
         first.text.indices.all { first.text[it] == second.text[it] }
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -204,6 +207,7 @@ private fun PinDialog(onDismiss: () -> Unit, onSet: (CharArray) -> Unit) {
                         textObfuscationMode = TextObfuscationMode.Hidden,
                         shape = MaterialTheme.shapes.extraLarge,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
+                        inputTransformation = DigitsOnly,
                     )
                 }
                 Text(stringResource(R.string.settings_pin_help, MIN_PIN), style = MaterialTheme.typography.bodySmall)
@@ -219,4 +223,9 @@ private fun PinDialog(onDismiss: () -> Unit, onSet: (CharArray) -> Unit) {
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.browser_cancel)) } },
     )
+}
+
+/** The lock screen keypad has digits only: refuse anything else and cap the length. */
+private val DigitsOnly = InputTransformation {
+    if (length > MAX_PIN || (0 until length).any { charAt(it) !in '0'..'9' }) revertAllChanges()
 }

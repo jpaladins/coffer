@@ -13,15 +13,34 @@ class ThumbnailCache(maxBytes: Int) {
         override fun sizeOf(key: String, value: ImageBitmap) = (value.width * value.height * 4).coerceAtLeast(1)
     }
 
-    private fun key(vaultId: String, path: String) = "$vaultId\u0000$path"
+    /** Bumped by [clear], so a decode that started before a lock cannot refill the cache. */
+    private val generations = HashMap<String, Long>()
 
-    fun get(vaultId: String, path: String): ImageBitmap? = lru[key(vaultId, path)]
+    /** [version] identifies the file content (size and modification time), so a changed file misses. */
+    private fun key(vaultId: String, path: String, version: String) = "$vaultId\u0000$path\u0000$version"
 
-    fun put(vaultId: String, path: String, bmp: ImageBitmap) {
-        lru.put(key(vaultId, path), bmp)
+    @Synchronized
+    fun get(vaultId: String, path: String, version: String = ""): ImageBitmap? = lru[key(vaultId, path, version)]
+
+    @Synchronized
+    fun put(vaultId: String, path: String, bmp: ImageBitmap, version: String = "") {
+        lru.put(key(vaultId, path, version), bmp)
     }
 
+    @Synchronized
+    fun generation(vaultId: String): Long = generations[vaultId] ?: 0L
+
+    /** Stores only if the vault was not cleared since [generation] was read. */
+    @Synchronized
+    fun putIfCurrent(vaultId: String, path: String, version: String, bmp: ImageBitmap, generation: Long): Boolean {
+        if (generation(vaultId) != generation) return false
+        put(vaultId, path, bmp, version)
+        return true
+    }
+
+    @Synchronized
     fun clear(vaultId: String) {
+        generations[vaultId] = generation(vaultId) + 1
         val prefix = "$vaultId\u0000"
         lru.snapshot().keys.filter { it.startsWith(prefix) }.forEach { lru.remove(it) }
     }

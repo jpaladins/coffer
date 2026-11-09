@@ -13,6 +13,7 @@ import app.coffer.data.UnlockRequest
 import app.coffer.data.VaultRef
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.runTest
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertSame
@@ -82,5 +83,21 @@ class ThumbnailCacheTest {
         open(sm)
         val loader = ThumbnailLoader(sm, ThumbnailCache(1 shl 20), io) { _, _ -> throw OutOfMemoryError("huge") }
         assertNull(loader.load("v1", "/a.jpg", 1, 96))
+    }
+
+    @Test fun changed_file_misses_the_cache() {
+        val cache = ThumbnailCache(1 shl 20)
+        cache.put("v", "/a.jpg", FakeBitmap(1, 1), version = "10:100")
+        assertNull(cache.get("v", "/a.jpg", version = "12:200"))
+        assertNotNull(cache.get("v", "/a.jpg", version = "10:100"))
+    }
+
+    @Test fun put_racing_a_clear_is_dropped() {
+        val cache = ThumbnailCache(1 shl 20)
+        val gen = cache.generation("v")
+        cache.clear("v")
+        assertFalse(cache.putIfCurrent("v", "/a.jpg", "1:1", FakeBitmap(1, 1), gen))
+        assertNull(cache.get("v", "/a.jpg", "1:1"))
+        assert(cache.putIfCurrent("v", "/a.jpg", "1:1", FakeBitmap(1, 1), cache.generation("v")))
     }
 }

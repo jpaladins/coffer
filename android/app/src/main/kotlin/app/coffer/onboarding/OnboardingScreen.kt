@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package app.coffer.onboarding
 
+import app.coffer.ui.theme.CofferGreen
+import app.coffer.ui.theme.CofferGold
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.background
@@ -81,8 +83,9 @@ fun OnboardingScreen(onFinish: (OnboardingExit) -> Unit) {
                     HexBadge(
                         p.icon,
                         size = 128.dp,
-                        container = MaterialTheme.colorScheme.primary,
-                        content = MaterialTheme.colorScheme.tertiary,
+                        // Brand mark: the same green and gold in both themes.
+                        container = CofferGreen,
+                        content = CofferGold,
                     )
                     Spacer(Modifier.height(32.dp))
                     Text(stringResource(p.title), style = MaterialTheme.typography.headlineMedium, textAlign = TextAlign.Center)

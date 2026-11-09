@@ -165,7 +165,7 @@ class BrowserViewModel @AssistedInject constructor(
 
     /** Photo preview of an entry in the current folder, from memory or decoded now. */
     suspend fun thumbnail(entry: Entry, targetPx: Int): androidx.compose.ui.graphics.ImageBitmap? =
-        thumbnails?.load(vaultId, childPath(_uiState.value.path, entry.name), entry.size, targetPx)
+        thumbnails?.load(vaultId, childPath(_uiState.value.path, entry.name), entry.size, targetPx, entry.modified)
 
     fun onQuery(q: String) = _uiState.update { it.copy(query = q) }
 
@@ -224,6 +224,11 @@ class BrowserViewModel @AssistedInject constructor(
             } catch (e: CofferException) {
                 _effects.send(BrowserEffect.ExportFailed(e))
             } catch (e: java.io.IOException) {
+                _effects.send(BrowserEffect.ExportFailed(CofferException.Io(e.message ?: "write failed")))
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: RuntimeException) {
+                // A revoked folder permission or a provider bug: report it, do not crash.
                 _effects.send(BrowserEffect.ExportFailed(CofferException.Io(e.message ?: "write failed")))
             } finally {
                 guard.release()

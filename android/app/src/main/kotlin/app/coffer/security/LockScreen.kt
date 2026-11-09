@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package app.coffer.security
 
+import app.coffer.ui.theme.CofferGreen
+import app.coffer.ui.theme.CofferGold
 import androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_STRONG
 import androidx.biometric.BiometricPrompt
 import androidx.compose.animation.core.Animatable
@@ -159,7 +161,7 @@ fun LockScreen(appLock: AppLock, mode: AppLockMode) {
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center,
         ) {
-            HexBadge(Icons.Filled.Lock, size = 56.dp, container = MaterialTheme.colorScheme.primary, content = MaterialTheme.colorScheme.tertiary)
+            HexBadge(Icons.Filled.Lock, size = 56.dp, container = CofferGreen, content = CofferGold)
             Spacer(Modifier.height(12.dp))
             Text(title, style = MaterialTheme.typography.headlineSmall)
             Spacer(Modifier.height(16.dp))
@@ -216,7 +218,8 @@ fun LockScreen(appLock: AppLock, mode: AppLockMode) {
     }
 }
 
-private const val MAX_PIN_INPUT = 16
+/** Above [MAX_PIN]: PINs set before 0.1.0a had no maximum and must still unlock. */
+private const val MAX_PIN_INPUT = 64
 private const val MAX_DOTS = 8
 private val KEY = 72.dp
 

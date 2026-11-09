@@ -35,6 +35,11 @@ sealed interface PinResult {
 }
 
 const val MIN_PIN = 4
+
+/** The lock screen keypad types digits only, so a new PIN is digits only too. */
+const val MAX_PIN = 16
+
+fun isValidPin(pin: CharSequence) = pin.length in MIN_PIN..MAX_PIN && pin.all { it in '0'..'9' }
 private const val FREE_ATTEMPTS = 5
 private const val FIRST_LOCKOUT_MS = 30_000L
 private const val PIN_ITERATIONS = 100_000
@@ -121,10 +126,10 @@ class AppLock(private val store: AppLockStore, private val clock: () -> Long) {
         _isLocked.value = false
     }
 
-    /** Sets the PIN and mode; false (nothing changed) if the PIN is too short. Wipes [pin]. */
+    /** Sets the PIN and mode; false (nothing changed) unless [isValidPin]. Wipes [pin]. */
     suspend fun setPin(pin: CharArray, mode: AppLockMode): Boolean {
         try {
-            if (pin.size < MIN_PIN || mode == AppLockMode.OFF) return false
+            if (!isValidPin(java.nio.CharBuffer.wrap(pin)) || mode == AppLockMode.OFF) return false
             val salt = ByteArray(16).also(SecureRandom()::nextBytes)
             store.save(AppLockConfig(mode = mode, pin = PinRecord(salt, hashPin(pin, salt))))
             this.mode = mode

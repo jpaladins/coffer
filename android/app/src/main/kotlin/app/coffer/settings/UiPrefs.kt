@@ -50,17 +50,25 @@ class UiPrefs(private val dataStore: DataStore<Preferences>) {
         }
     }
 
-    suspend fun recordAccess(id: String, at: Long) {
+    /** Best effort: a disk error only loses the time, it must not fail the unlock. */
+    suspend fun recordAccess(id: String, at: Long) = bestEffort {
         dataStore.edit {
             if (it[REMEMBER] == false) return@edit
             it[LAST_ACCESS] = encode(decode(it[LAST_ACCESS]) + (id to at))
         }
     }
 
-    suspend fun forget(id: String) {
+    suspend fun forget(id: String) = bestEffort {
         dataStore.edit {
             val map = decode(it[LAST_ACCESS])
             if (id in map) it[LAST_ACCESS] = encode(map - id)
+        }
+    }
+
+    private inline fun bestEffort(block: () -> Unit) {
+        try {
+            block()
+        } catch (_: java.io.IOException) {
         }
     }
 

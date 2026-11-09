@@ -50,6 +50,7 @@ import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextOverflow
@@ -140,9 +141,10 @@ private fun Message(text: String) {
 @Composable
 private fun DecodedImage(bytes: ByteArray, name: String, onTap: () -> Unit) {
     val window = LocalWindowInfo.current.containerSize
-    val maxPx = maxOf(window.width, window.height, 1) * 2
-    // Unit = still decoding, null = undecodable.
-    val bitmap by produceState<Any?>(Unit, bytes) {
+    val maxPx = maxOf(window.width, window.height) * 2
+    // Unit = still decoding, null = undecodable. Waits for the window size before decoding.
+    val bitmap by produceState<Any?>(Unit, bytes, maxPx) {
+        if (maxPx == 0) return@produceState
         value = withContext(Dispatchers.Default) {
             val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
             BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
@@ -161,6 +163,7 @@ private fun DecodedImage(bytes: ByteArray, name: String, onTap: () -> Unit) {
 
 @Composable
 private fun ZoomableImage(bitmap: ImageBitmap, description: String, onTap: () -> Unit) {
+    val toggleLabel = stringResource(R.string.viewer_toggle_controls)
     var scale by remember { mutableFloatStateOf(1f) }
     var offset by remember { mutableStateOf(Offset.Zero) }
     var size by remember { mutableStateOf(IntSize.Zero) }
@@ -175,7 +178,10 @@ private fun ZoomableImage(bitmap: ImageBitmap, description: String, onTap: () ->
         contentScale = ContentScale.Fit,
         modifier = Modifier
             .fillMaxSize()
-            .semantics { contentDescription = description }
+            .semantics {
+                contentDescription = description
+                onClick(label = toggleLabel) { onTap(); true }
+            }
             .onSizeChanged { size = it }
             .pointerInput(Unit) {
                 detectTapGestures(

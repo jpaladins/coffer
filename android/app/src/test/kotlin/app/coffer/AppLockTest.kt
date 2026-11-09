@@ -4,6 +4,7 @@ package app.coffer
 import app.coffer.security.AppLock
 import app.coffer.security.AppLockConfig
 import app.coffer.security.AppLockMode
+import app.coffer.security.MAX_PIN
 import app.coffer.security.AppLockStore
 import app.coffer.security.PinResult
 import kotlinx.coroutines.test.runTest
@@ -109,6 +110,14 @@ class AppLockTest {
     fun short_pin_is_rejected() = runTest {
         assertFalse(lock.setPin("12".toCharArray(), AppLockMode.PIN))
         assertEquals(AppLockMode.OFF, store.config.mode)
+    }
+
+    @Test
+    fun pin_must_be_digits_and_at_most_max() = runTest {
+        assertFalse(lock.setPin("12a4".toCharArray(), AppLockMode.PIN))
+        assertFalse(lock.setPin("1".repeat(MAX_PIN + 1).toCharArray(), AppLockMode.PIN))
+        assertEquals(AppLockMode.OFF, store.config.mode)
+        assert(lock.setPin("1".repeat(MAX_PIN).toCharArray(), AppLockMode.PIN))
     }
 
     /** Review P5 #2: only a Coffer-launched picker exempts the app lock, not a transfer. */

@@ -57,4 +57,15 @@ class UiPrefsTest {
         assertEquals(BrowserLayout.Grid, prefs.layout.first())
         assertTrue(prefs.onboardingDone.first())
     }
+
+    @Test fun record_and_forget_survive_a_disk_error() = runTest {
+        val broken = object : androidx.datastore.core.DataStore<androidx.datastore.preferences.core.Preferences> {
+            override val data = kotlinx.coroutines.flow.flowOf(androidx.datastore.preferences.core.emptyPreferences())
+            override suspend fun updateData(
+                transform: suspend (androidx.datastore.preferences.core.Preferences) -> androidx.datastore.preferences.core.Preferences,
+            ): androidx.datastore.preferences.core.Preferences = throw java.io.IOException("disk full")
+        }
+        UiPrefs(broken).recordAccess("v1", 1L)
+        UiPrefs(broken).forget("v1")
+    }
 }
