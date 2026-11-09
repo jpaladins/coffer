@@ -22,6 +22,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import app.coffer.security.NoRememberedPasswords
 import app.coffer.security.RememberedPasswords
+import app.coffer.settings.UiPrefs
 import javax.crypto.Cipher
 
 sealed interface UnlockPhase {
@@ -68,6 +69,7 @@ class UnlockViewModel @AssistedInject constructor(
     private val store: VaultStore,
     private val sessions: SessionManager,
     private val remembered: RememberedPasswords = NoRememberedPasswords,
+    private val uiPrefs: UiPrefs? = null,
 ) : ViewModel() {
     @AssistedFactory
     interface Factory {
@@ -189,6 +191,7 @@ class UnlockViewModel @AssistedInject constructor(
                     writable = !s.readOnly, hiddenPassword = hidden,
                 )
                 val session = sessions.unlock(ref, req, signal)
+                uiPrefs?.recordAccess(vaultId, System.currentTimeMillis())
                 if (toRemember != null && rememberWith != null) {
                     runCatching { remembered.save(vaultId, rememberWith, toRemember) }
                         .onSuccess { _uiState.update { it.copy(hasRemembered = true) } }

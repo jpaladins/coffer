@@ -34,6 +34,7 @@ import app.coffer.security.KeystoreRememberedPasswords
 import app.coffer.security.RememberedPasswords
 import app.coffer.security.SecuritySettings
 import app.coffer.transfer.TransferManager
+import app.coffer.settings.UiPrefs
 
 @Module
 @InstallIn(SingletonComponent::class)
@@ -44,6 +45,9 @@ object AppModule {
 
     @Provides @Singleton
     fun vaultStore(ds: DataStore<Preferences>): VaultStore = DataStoreVaultStore(ds)
+
+    @Provides @Singleton
+    fun uiPrefs(ds: DataStore<Preferences>) = UiPrefs(ds)
 
     @Provides @Singleton
     fun nativeVaults(): NativeVaults = FfiNativeVaults()

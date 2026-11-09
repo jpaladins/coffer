@@ -40,7 +40,7 @@ class VaultsAndUnlockViewModelTest {
     fun add_persists_permission_and_lists_vault() = runTest {
         val store = FakeStore()
         val docs = FakeDocuments()
-        val vm = VaultsViewModel(store, sessions(FakeNative(), store, StandardTestDispatcher(testScheduler)), docs)
+        val vm = VaultsViewModel(store, sessions(FakeNative(), store, StandardTestDispatcher(testScheduler)), docs, app.coffer.settings.UiPrefs(MemoryPrefs()))
         vm.onDocumentPicked("content://p/new.hc")
         advanceUntilIdle()
         assertEquals(listOf("content://p/new.hc"), docs.persisted)
@@ -52,7 +52,7 @@ class VaultsAndUnlockViewModelTest {
         val store = FakeStore(ref)
         val sm = sessions(FakeNative(), store, StandardTestDispatcher(testScheduler))
         sm.unlock(ref, app.coffer.data.UnlockRequest("secret".toCharArray(), 0, emptyList(), null), sm.newCancel())
-        val vm = VaultsViewModel(store, sm, FakeDocuments())
+        val vm = VaultsViewModel(store, sm, FakeDocuments(), app.coffer.settings.UiPrefs(MemoryPrefs()))
         vm.onRemove("v1")
         advanceUntilIdle()
         assertTrue(store.state.value.isEmpty())
@@ -68,6 +68,31 @@ class VaultsAndUnlockViewModelTest {
         advanceUntilIdle()
         assertEquals(UnlockEffect.NavigateToBrowser("v1"), vm.effects.first())
         assertEquals(UnlockPhase.Idle, vm.uiState.value.phase)
+    }
+
+    @Test
+    fun unlock_success_records_last_access() = runTest {
+        val store = FakeStore(ref)
+        val prefs = app.coffer.settings.UiPrefs(MemoryPrefs())
+        val vm = UnlockViewModel(
+            "v1", store, sessions(FakeNative(), store, StandardTestDispatcher(testScheduler)),
+            uiPrefs = prefs,
+        )
+        advanceUntilIdle()
+        vm.onUnlock("secret".toCharArray())
+        advanceUntilIdle()
+        assertTrue(prefs.lastAccess.first().containsKey("v1"))
+    }
+
+    @Test
+    fun remove_forgets_last_access() = runTest {
+        val store = FakeStore(ref)
+        val prefs = app.coffer.settings.UiPrefs(MemoryPrefs())
+        prefs.recordAccess("v1", 5L)
+        val vm = VaultsViewModel(store, sessions(FakeNative(), store, StandardTestDispatcher(testScheduler)), FakeDocuments(), prefs)
+        vm.onRemove("v1")
+        advanceUntilIdle()
+        assertTrue(prefs.lastAccess.first().isEmpty())
     }
 
     @Test

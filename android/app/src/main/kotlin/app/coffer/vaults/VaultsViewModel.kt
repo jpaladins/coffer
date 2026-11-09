@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import app.coffer.data.SessionManager
 import app.coffer.data.VaultStore
 import app.coffer.platform.DocumentAccess
+import app.coffer.settings.UiPrefs
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.flow.SharingStarted
@@ -25,6 +26,7 @@ class VaultsViewModel @Inject constructor(
     private val store: VaultStore,
     private val sessions: SessionManager,
     private val documents: DocumentAccess,
+    private val uiPrefs: UiPrefs,
 ) : ViewModel() {
     val uiState: StateFlow<VaultsUiState> =
         combine(store.vaults, sessions.openIds) { vaults, open ->
@@ -40,7 +42,10 @@ class VaultsViewModel @Inject constructor(
 
     fun onRemove(id: String) {
         sessions.close(id)
-        viewModelScope.launch { store.remove(id) }
+        viewModelScope.launch {
+            store.remove(id)
+            uiPrefs.forget(id)
+        }
     }
 
     fun onLockAll() = sessions.closeAll()

@@ -175,3 +175,13 @@ class FakeSource(private val docs: Map<String, ByteArray>) : app.coffer.transfer
     override fun openInput(uri: String) = java.io.ByteArrayInputStream(docs[uri] ?: throw java.io.FileNotFoundException(uri))
     override fun displayName(uri: String) = uri.substringAfterLast('/')
 }
+
+/** In-memory DataStore: the file-backed one cannot replace its file on a Windows JVM. */
+class MemoryPrefs : androidx.datastore.core.DataStore<androidx.datastore.preferences.core.Preferences> {
+    private val state = kotlinx.coroutines.flow.MutableStateFlow(androidx.datastore.preferences.core.emptyPreferences())
+    private val lock = kotlinx.coroutines.sync.Mutex()
+    override val data: kotlinx.coroutines.flow.Flow<androidx.datastore.preferences.core.Preferences> = state
+    override suspend fun updateData(
+        transform: suspend (androidx.datastore.preferences.core.Preferences) -> androidx.datastore.preferences.core.Preferences,
+    ) = lock.lock().let { try { transform(state.value).also { state.value = it } } finally { lock.unlock() } }
+}
