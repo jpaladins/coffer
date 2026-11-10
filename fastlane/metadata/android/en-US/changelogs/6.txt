@@ -1,0 +1,1 @@
+Smoother interface: animations when locking and unlocking containers, opening folders and selecting files. Theme choice (system, light, dark) and privacy policy link in settings.

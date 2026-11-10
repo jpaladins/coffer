@@ -1,6 +1,16 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package app.coffer.vaults
 
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.IntSize
+import androidx.compose.animation.togetherWith
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.SizeTransform
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -64,11 +74,19 @@ fun VaultCard(
 ) {
     val source = remember { MutableInteractionSource() }
     val c = MaterialTheme.colorScheme
+    // Locking or unlocking morphs the card in place instead of swapping it.
+    val spec = MaterialTheme.motionScheme.defaultEffectsSpec<Color>()
+    val cardColor by animateColorAsState(if (item.isOpen) c.surfaceContainerHigh else c.surfaceContainerLow, spec, label = "card")
+    val hexColor by animateColorAsState(if (item.isOpen) c.tertiary else c.primaryContainer, spec, label = "hex")
+    val fadeInSpec = MaterialTheme.motionScheme.defaultEffectsSpec<Float>()
+    val fadeOutSpec = MaterialTheme.motionScheme.fastEffectsSpec<Float>()
+    val sizeSpec = MaterialTheme.motionScheme.defaultSpatialSpec<IntSize>()
+    val hexContent by animateColorAsState(if (item.isOpen) c.onTertiary else c.onPrimaryContainer, spec, label = "hexContent")
     Card(
         onClick = onOpen,
         modifier = modifier.fillMaxWidth().pressScale(source),
         shape = RoundedCornerShape(CofferRadii.card),
-        colors = CardDefaults.cardColors(containerColor = if (item.isOpen) c.surfaceContainerHigh else c.surfaceContainerLow),
+        colors = CardDefaults.cardColors(containerColor = cardColor),
         interactionSource = source,
     ) {
         Column(Modifier.padding(start = 16.dp, top = 16.dp, end = 4.dp, bottom = 16.dp)) {
@@ -76,8 +94,8 @@ fun VaultCard(
                 HexBadge(
                     Icons.Filled.Lock,
                     size = 48.dp,
-                    container = if (item.isOpen) c.tertiary else c.primaryContainer,
-                    content = if (item.isOpen) c.onTertiary else c.onPrimaryContainer,
+                    container = hexColor,
+                    content = hexContent,
                 )
                 Spacer(Modifier.width(16.dp))
                 Column(Modifier.weight(1f)) {
@@ -86,7 +104,11 @@ fun VaultCard(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         itemVerticalAlignment = Alignment.CenterVertically,
                     ) {
-                        StateBadge(item.isOpen)
+                        AnimatedContent(
+                            item.isOpen,
+                            transitionSpec = { (fadeIn() + scaleIn(initialScale = 0.8f)) togetherWith (fadeOut() + scaleOut(targetScale = 0.8f)) },
+                            label = "badge",
+                        ) { StateBadge(it) }
                         item.fileBytes?.let {
                             Text(
                                 humanSize(it),
@@ -100,8 +122,15 @@ fun VaultCard(
                 CardMenu(onDetails, onRemove)
             }
             Spacer(Modifier.height(12.dp))
-            Column(Modifier.padding(end = 12.dp)) {
-                if (item.isOpen) OpenDetails(item, onLock) else LastAccess(item, now)
+            AnimatedContent(
+                item.isOpen,
+                modifier = Modifier.padding(end = 12.dp),
+                transitionSpec = {
+                    (fadeIn(fadeInSpec) togetherWith fadeOut(fadeOutSpec)).using(SizeTransform(clip = false) { _, _ -> sizeSpec })
+                },
+                label = "details",
+            ) { open ->
+                Column { if (open) OpenDetails(item, onLock) else LastAccess(item, now) }
             }
         }
     }

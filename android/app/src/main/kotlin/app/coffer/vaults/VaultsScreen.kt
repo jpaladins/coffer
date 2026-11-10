@@ -1,6 +1,14 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package app.coffer.vaults
 
+import app.coffer.ui.components.rememberHaptics
+import androidx.compose.animation.togetherWith
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.AnimatedContent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.Animatable
@@ -104,12 +112,13 @@ fun VaultsContent(
     var addSheet by remember { mutableStateOf(false) }
     var details by remember { mutableStateOf<String?>(null) }
     val scroll = TopAppBarDefaults.pinnedScrollBehavior()
+    val haptics = rememberHaptics()
     Scaffold(
         modifier = Modifier.nestedScroll(scroll.nestedScrollConnection),
         topBar = {
             CofferTopBar(stringResource(R.string.vaults_title), scroll, large = false) {
-                if (state.anyOpen) {
-                    IconButton(onClick = onLockAll) {
+                AnimatedVisibility(state.anyOpen, enter = fadeIn() + scaleIn(), exit = fadeOut() + scaleOut()) {
+                    IconButton(onClick = { haptics.confirm(); onLockAll() }) {
                         Icon(Icons.Filled.Lock, contentDescription = stringResource(R.string.vaults_lock_all))
                     }
                 }
@@ -119,7 +128,7 @@ fun VaultsContent(
             }
         },
         floatingActionButton = {
-            if (state.vaults.isNotEmpty()) {
+            AnimatedVisibility(state.vaults.isNotEmpty(), enter = fadeIn() + scaleIn(), exit = fadeOut() + scaleOut()) {
                 ExtendedFloatingActionButton(
                     onClick = { addSheet = true },
                     icon = { Icon(Icons.Filled.Add, contentDescription = null) },
@@ -130,7 +139,9 @@ fun VaultsContent(
             }
         },
     ) { padding ->
-        if (state.loaded && state.vaults.isEmpty()) {
+      // Empty state and list cross-fade when the last container is removed or the first added.
+      AnimatedContent(state.loaded && state.vaults.isEmpty(), transitionSpec = { fadeIn() togetherWith fadeOut() }, label = "vaults") { empty ->
+        if (empty) {
             Column(Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState())) {
                 EmptyState(
                     CofferIcons.FolderOpen,
@@ -188,6 +199,7 @@ fun VaultsContent(
                 }
             }
         }
+      }
     }
     if (addSheet) {
         ModalBottomSheet(onDismissRequest = { addSheet = false }) {

@@ -1,6 +1,16 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package app.coffer.browser
 
+import androidx.compose.animation.togetherWith
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.AnimatedContent
 import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -282,7 +292,8 @@ fun BrowserContent(state: BrowserUiState, snackbar: SnackbarHostState, actions: 
     Scaffold(
         topBar = {
             Column {
-                if (state.selecting) {
+                AnimatedContent(state.selecting, transitionSpec = { fadeIn() togetherWith fadeOut() }, label = "bar") { selecting ->
+                if (selecting) {
                     SelectionBar(
                         count = actionable.size,
                         canExport = selectedFiles && state.exportProgress == null,
@@ -295,10 +306,12 @@ fun BrowserContent(state: BrowserUiState, snackbar: SnackbarHostState, actions: 
                 } else {
                     BrowserTopBar(state, actions) { dialog = Dialog.NewFolder }
                 }
+                }
                 Badges(state)
                 Breadcrumbs(state.breadcrumbs, actions::onBreadcrumb)
-                if (state.busy) androidx.compose.material3.LinearProgressIndicator(Modifier.fillMaxWidth())
-                state.exportProgress?.let {
+                AnimatedVisibility(state.busy) { androidx.compose.material3.LinearProgressIndicator(Modifier.fillMaxWidth()) }
+                AnimatedVisibility(state.exportProgress != null) {
+                  val it = state.exportProgress ?: 0f
                     ProgressCard(
                         stringResource(R.string.export_running),
                         "${(it * 100).toInt()} %",
@@ -307,7 +320,11 @@ fun BrowserContent(state: BrowserUiState, snackbar: SnackbarHostState, actions: 
                         modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
                     )
                 }
-                state.transfer?.let { t ->
+                // Keeps the last values while the card collapses away.
+                var lastTransfer by remember { mutableStateOf(state.transfer) }
+                if (state.transfer != null) lastTransfer = state.transfer
+                AnimatedVisibility(state.transfer != null) {
+                  lastTransfer?.let { t ->
                     ProgressCard(
                         t.name,
                         stringResource(R.string.import_progress, t.name, t.index, t.total) + " · " + humanSize(t.bytes),
@@ -315,11 +332,13 @@ fun BrowserContent(state: BrowserUiState, snackbar: SnackbarHostState, actions: 
                         onStop = actions::onCancelImport,
                         modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp).testTag("import_progress"),
                     )
+                  }
                 }
             }
         },
         bottomBar = {
-            state.moving?.let { m ->
+            AnimatedVisibility(state.moving != null, enter = slideInVertically { it } + fadeIn(), exit = slideOutVertically { it } + fadeOut()) {
+              val m = state.moving.orEmpty()
                 BottomAppBar {
                     Text(
                         stringResource(R.string.browser_moving, m.substringAfterLast('/')),
@@ -336,7 +355,11 @@ fun BrowserContent(state: BrowserUiState, snackbar: SnackbarHostState, actions: 
             }
         },
         floatingActionButton = {
-            if (state.writable && state.transfer == null && state.moving == null && !state.selecting) {
+            AnimatedVisibility(
+                state.writable && state.transfer == null && state.moving == null && !state.selecting,
+                enter = fadeIn() + scaleIn(),
+                exit = fadeOut() + scaleOut(),
+            ) {
                 ExtendedFloatingActionButton(
                     onClick = actions::onImport,
                     icon = { Icon(Icons.Filled.Add, contentDescription = null) },
@@ -352,50 +375,66 @@ fun BrowserContent(state: BrowserUiState, snackbar: SnackbarHostState, actions: 
             val writable = state.canEdit && state.moving == null
             val rename = { e: Entry -> dialog = Dialog.Rename(e) }
             val delete = { e: Entry -> dialog = Dialog.Delete(e) }
-            when {
-                state.loading && state.entries.isEmpty() -> LoadingIndicator(Modifier.align(Alignment.Center))
-                state.error != null -> Text(state.error.userMessage(), Modifier.align(Alignment.Center).padding(24.dp))
-                state.entries.isEmpty() -> EmptyState(
-                    CofferIcons.FolderOpen,
-                    stringResource(R.string.browser_empty),
-                    if (state.writable) stringResource(R.string.browser_empty_body) else "",
-                    Modifier.align(Alignment.Center),
-                )
-                visible.isEmpty() -> Text(
-                    stringResource(R.string.browser_no_results),
-                    Modifier.align(Alignment.Center).padding(24.dp),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                state.layout == BrowserLayout.Grid -> LazyVerticalGrid(
-                    GridCells.Adaptive(104.dp),
-                    Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(12.dp, 8.dp, 12.dp, 112.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    items(visible, key = { it.name }) { e ->
-                        FileTile(
-                            e, e.name in state.selected, state.selecting, writable, actions,
-                            onRename = { rename(e) }, onDelete = { delete(e) },
-                            modifier = Modifier.animateItem(),
-                            preview = { Thumb(e, thumbs, 256) { FileIcon(e) } },
-                        )
+            // Opening a folder slides in from the right, going back slides out to the right.
+            AnimatedContent(
+                state,
+                contentKey = { it.path },
+                transitionSpec = {
+                    val forward = targetState.path.length > initialState.path.length
+                    val dir = if (forward) 1 else -1
+                    (slideInHorizontally { w -> dir * w / 4 } + fadeIn()) togetherWith
+                        (slideOutHorizontally { w -> -dir * w / 4 } + fadeOut())
+                },
+                label = "folder",
+            ) { s ->
+                val vis = remember(s.entries, s.query, s.sort) { s.visible }
+                Box(Modifier.fillMaxSize()) {
+                when {
+                    s.loading && s.entries.isEmpty() -> LoadingIndicator(Modifier.align(Alignment.Center))
+                    s.error != null -> Text(s.error.userMessage(), Modifier.align(Alignment.Center).padding(24.dp))
+                    s.entries.isEmpty() -> EmptyState(
+                        CofferIcons.FolderOpen,
+                        stringResource(R.string.browser_empty),
+                        if (s.writable) stringResource(R.string.browser_empty_body) else "",
+                        Modifier.align(Alignment.Center),
+                    )
+                    vis.isEmpty() -> Text(
+                        stringResource(R.string.browser_no_results),
+                        Modifier.align(Alignment.Center).padding(24.dp),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    s.layout == BrowserLayout.Grid -> LazyVerticalGrid(
+                        GridCells.Adaptive(104.dp),
+                        Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(12.dp, 8.dp, 12.dp, 112.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        items(vis, key = { it.name }) { e ->
+                            FileTile(
+                                e, e.name in s.selected, s.selecting, writable, actions,
+                                onRename = { rename(e) }, onDelete = { delete(e) },
+                                modifier = Modifier.animateItem(),
+                                preview = { Thumb(e, thumbs, 256) { FileIcon(e) } },
+                            )
+                        }
+                    }
+                    else -> LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 112.dp)) {
+                        items(vis, key = { it.name }) { e ->
+                            FileRow(
+                                e, e.name in s.selected, s.selecting, writable, actions,
+                                onRename = { rename(e) }, onDelete = { delete(e) },
+                                modifier = Modifier.animateItem(),
+                                leading = {
+                                    Box(Modifier.size(40.dp).clip(MaterialTheme.shapes.small), contentAlignment = Alignment.Center) {
+                                        Thumb(e, thumbs, 96) { FileIcon(e) }
+                                    }
+                                },
+                            )
+                            HorizontalDivider(color = MaterialTheme.colorScheme.surfaceContainerHigh)
+                        }
                     }
                 }
-                else -> LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 112.dp)) {
-                    items(visible, key = { it.name }) { e ->
-                        FileRow(
-                            e, e.name in state.selected, state.selecting, writable, actions,
-                            onRename = { rename(e) }, onDelete = { delete(e) },
-                            modifier = Modifier.animateItem(),
-                            leading = {
-                                Box(Modifier.size(40.dp).clip(MaterialTheme.shapes.small), contentAlignment = Alignment.Center) {
-                                    Thumb(e, thumbs, 96) { FileIcon(e) }
-                                }
-                            },
-                        )
-                        HorizontalDivider(color = MaterialTheme.colorScheme.surfaceContainerHigh)
-                    }
                 }
             }
         }

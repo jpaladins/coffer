@@ -1,0 +1,1 @@
+Interfaccia più fluida: animazioni quando blocchi e sblocchi i container, apri le cartelle e selezioni i file. Scelta del tema (sistema, chiaro, scuro) e link all'informativa privacy nelle impostazioni.
