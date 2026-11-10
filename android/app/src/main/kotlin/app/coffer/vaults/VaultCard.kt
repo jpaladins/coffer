@@ -122,15 +122,18 @@ fun VaultCard(
                 CardMenu(onDetails, onRemove)
             }
             Spacer(Modifier.height(12.dp))
+            // Animates the whole item: the outgoing side keeps its own snapshot,
+            // so the open details do not lose their rows before fading out.
             AnimatedContent(
-                item.isOpen,
+                item,
+                contentKey = { it.isOpen },
                 modifier = Modifier.padding(end = 12.dp),
                 transitionSpec = {
                     (fadeIn(fadeInSpec) togetherWith fadeOut(fadeOutSpec)).using(SizeTransform(clip = false) { _, _ -> sizeSpec })
                 },
                 label = "details",
-            ) { open ->
-                Column { if (open) OpenDetails(item, onLock) else LastAccess(item, now) }
+            ) { shown ->
+                Column { if (shown.isOpen) OpenDetails(shown, onLock) else LastAccess(shown, now) }
             }
         }
     }
