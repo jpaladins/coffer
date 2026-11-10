@@ -4,6 +4,7 @@ package app.coffer
 import app.coffer.settings.BrowserLayout
 import app.coffer.settings.SortKey
 import app.coffer.settings.SortOrder
+import app.coffer.settings.ThemeMode
 import app.coffer.settings.UiPrefs
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
@@ -21,6 +22,14 @@ class UiPrefsTest {
         assertTrue(prefs.rememberLastAccess.first())
         assertFalse(prefs.onboardingDone.first())
         assertTrue(prefs.lastAccess.first().isEmpty())
+    }
+
+    @Test fun theme_defaults_to_system_and_round_trips() = runTest {
+        assertEquals(ThemeMode.System, prefs.themeMode.first())
+        prefs.setThemeMode(ThemeMode.Dark)
+        assertEquals(ThemeMode.Dark, prefs.themeMode.first())
+        prefs.setThemeMode(ThemeMode.Light)
+        assertEquals(ThemeMode.Light, prefs.themeMode.first())
     }
 
     @Test fun record_then_read_last_access() = runTest {

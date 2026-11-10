@@ -8,7 +8,12 @@ import android.os.Bundle
 import android.view.WindowManager
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.SystemBarStyle
 import androidx.activity.enableEdgeToEdge
+import android.graphics.Color
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.runtime.DisposableEffect
+import app.coffer.settings.ThemeMode
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.LaunchedEffect
@@ -73,9 +78,22 @@ class MainActivity : FragmentActivity() {
                     }
             }
         }
-        enableEdgeToEdge()
         setContent {
-            CofferTheme {
+            val themeMode by uiPrefs.themeMode.collectAsStateWithLifecycle(initialValue = ThemeMode.System)
+            val dark = when (themeMode) {
+                ThemeMode.System -> isSystemInDarkTheme()
+                ThemeMode.Light -> false
+                ThemeMode.Dark -> true
+            }
+            // System bar icons follow the app theme, not only the system one.
+            DisposableEffect(dark) {
+                enableEdgeToEdge(
+                    statusBarStyle = SystemBarStyle.auto(Color.TRANSPARENT, Color.TRANSPARENT) { dark },
+                    navigationBarStyle = SystemBarStyle.auto(Color.TRANSPARENT, Color.TRANSPARENT) { dark },
+                )
+                onDispose {}
+            }
+            CofferTheme(dark = dark) {
                 val nav = rememberNavController()
                 // Chosen once, above the lock: the graph must keep the same start while
                 // the lock screen comes and goes, or the back stack would be reset.

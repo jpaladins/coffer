@@ -11,6 +11,7 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 
 enum class BrowserLayout { List, Grid }
+enum class ThemeMode { System, Light, Dark }
 enum class SortKey { Name, Modified, Size }
 data class SortOrder(val key: SortKey = SortKey.Name, val ascending: Boolean = true)
 
@@ -30,9 +31,14 @@ class UiPrefs(private val dataStore: DataStore<Preferences>) {
         SortOrder(SortKey.entries.firstOrNull { it.name == p[SORT_KEY] } ?: SortKey.Name, p[SORT_ASC] ?: true)
     }.distinctUntilChanged()
 
+    val themeMode: Flow<ThemeMode> = dataStore.data.map { p ->
+        ThemeMode.entries.firstOrNull { it.name == p[THEME] } ?: ThemeMode.System
+    }.distinctUntilChanged()
+
     val lastAccess: Flow<Map<String, Long>> = dataStore.data.map { decode(it[LAST_ACCESS]) }.distinctUntilChanged()
 
     suspend fun setOnboardingDone() { dataStore.edit { it[ONBOARDING] = true } }
+    suspend fun setThemeMode(m: ThemeMode) { dataStore.edit { it[THEME] = m.name } }
     suspend fun setLayout(l: BrowserLayout) { dataStore.edit { it[LAYOUT] = l.name } }
 
     suspend fun setSort(s: SortOrder) {
@@ -78,6 +84,7 @@ class UiPrefs(private val dataStore: DataStore<Preferences>) {
     internal companion object {
         val ONBOARDING = booleanPreferencesKey("ui_onboarding_done")
         val LAYOUT = stringPreferencesKey("ui_layout")
+        val THEME = stringPreferencesKey("ui_theme")
         val SORT_KEY = stringPreferencesKey("ui_sort_key")
         val SORT_ASC = booleanPreferencesKey("ui_sort_asc")
         val REMEMBER = booleanPreferencesKey("ui_remember_access")

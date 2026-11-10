@@ -250,4 +250,10 @@
         <item quantity="other">%1$d cifre inserite</item>
     </plurals>
     <string name="viewer_toggle_controls">Mostra o nascondi i comandi</string>
+    <string name="settings_section_appearance">Aspetto</string>
+    <string name="settings_theme">Tema</string>
+    <string name="settings_theme_system">Predefinito di sistema</string>
+    <string name="settings_theme_light">Chiaro</string>
+    <string name="settings_theme_dark">Scuro</string>
+    <string name="settings_privacy_policy">Informativa sulla privacy</string>
 </resources>

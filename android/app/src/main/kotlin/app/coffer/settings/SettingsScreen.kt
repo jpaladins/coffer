@@ -24,6 +24,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -31,6 +32,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedSecureTextField
 import androidx.compose.material3.RadioButton
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -75,6 +77,9 @@ fun SettingsScreen(
     val autoLock by settings.autoLockMs.collectAsStateWithLifecycle(initialValue = null)
     val secure by settings.secureWindow.collectAsStateWithLifecycle(initialValue = true)
     val mode by settings.appLockMode.collectAsStateWithLifecycle(initialValue = AppLockMode.OFF)
+    val themeMode by (uiPrefs?.themeMode ?: kotlinx.coroutines.flow.flowOf(ThemeMode.System))
+        .collectAsStateWithLifecycle(initialValue = ThemeMode.System)
+    val uriHandler = LocalUriHandler.current
     val rememberAccess by (uiPrefs?.rememberLastAccess ?: kotlinx.coroutines.flow.flowOf(true))
         .collectAsStateWithLifecycle(initialValue = true)
     var pinFor by remember { mutableStateOf<AppLockMode?>(null) }
@@ -93,6 +98,18 @@ fun SettingsScreen(
             Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(24.dp),
         ) {
+            if (uiPrefs != null) {
+                SettingsSection(stringResource(R.string.settings_section_appearance)) {
+                    Subhead(stringResource(R.string.settings_theme))
+                    listOf(
+                        ThemeMode.System to R.string.settings_theme_system,
+                        ThemeMode.Light to R.string.settings_theme_light,
+                        ThemeMode.Dark to R.string.settings_theme_dark,
+                    ).forEach { (m, label) ->
+                        Radio(stringResource(label), themeMode == m) { scope.launch { uiPrefs.setThemeMode(m) } }
+                    }
+                }
+            }
             SettingsSection(stringResource(R.string.settings_section_security)) {
                 Subhead(stringResource(R.string.settings_autolock))
                 AUTOLOCK_OPTIONS.forEach { ms ->
@@ -140,6 +157,14 @@ fun SettingsScreen(
                     trailing = { Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null) },
                     onClick = onAbout,
                 )
+                SettingsItem(
+                    stringResource(R.string.settings_privacy_policy),
+                    summary = PRIVACY_URL.removePrefix("https://"),
+                    icon = Icons.Filled.Lock,
+                    trailing = { Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null) },
+                    // No browser installed: nothing to open, stay here.
+                    onClick = { runCatching { uriHandler.openUri(PRIVACY_URL) } },
+                )
             }
         }
     }
@@ -150,6 +175,8 @@ fun SettingsScreen(
         }
     }
 }
+
+private const val PRIVACY_URL = "https://coffer.jpaladins.com/privacy"
 
 @Composable
 private fun Subhead(text: String) {
