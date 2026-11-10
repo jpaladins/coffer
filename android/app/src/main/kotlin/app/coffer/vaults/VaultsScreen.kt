@@ -103,11 +103,11 @@ fun VaultsContent(
 ) {
     var addSheet by remember { mutableStateOf(false) }
     var details by remember { mutableStateOf<String?>(null) }
-    val scroll = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
+    val scroll = TopAppBarDefaults.pinnedScrollBehavior()
     Scaffold(
         modifier = Modifier.nestedScroll(scroll.nestedScrollConnection),
         topBar = {
-            CofferTopBar(stringResource(R.string.vaults_title), scroll) {
+            CofferTopBar(stringResource(R.string.vaults_title), scroll, large = false) {
                 if (state.anyOpen) {
                     IconButton(onClick = onLockAll) {
                         Icon(Icons.Filled.Lock, contentDescription = stringResource(R.string.vaults_lock_all))

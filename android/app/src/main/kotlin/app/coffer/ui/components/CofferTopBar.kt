@@ -11,6 +11,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.LargeFlexibleTopAppBar
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.TopAppBarScrollBehavior
 import androidx.compose.runtime.Composable
@@ -20,15 +21,32 @@ import androidx.compose.ui.tooling.preview.Preview
 import app.coffer.R
 import app.coffer.ui.theme.CofferTheme
 
-/** Large header that collapses while the content scrolls. */
+/**
+ * Large header that collapses while the content scrolls; with [large] false
+ * the title sits on the same row as the actions (home screen).
+ */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun CofferTopBar(
     title: String,
     scrollBehavior: TopAppBarScrollBehavior,
     onBack: (() -> Unit)? = null,
+    large: Boolean = true,
     actions: @Composable RowScope.() -> Unit = {},
 ) {
+    val colors = TopAppBarDefaults.topAppBarColors(
+        containerColor = MaterialTheme.colorScheme.surface,
+        scrolledContainerColor = MaterialTheme.colorScheme.surfaceContainer,
+    )
+    if (!large) {
+        TopAppBar(
+            title = { Text(title, style = MaterialTheme.typography.headlineSmall, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+            actions = actions,
+            scrollBehavior = scrollBehavior,
+            colors = colors,
+        )
+        return
+    }
     LargeFlexibleTopAppBar(
         title = { Text(title, style = MaterialTheme.typography.headlineMedium, maxLines = 2, overflow = TextOverflow.Ellipsis) },
         navigationIcon = {
@@ -40,10 +58,7 @@ fun CofferTopBar(
         },
         actions = actions,
         scrollBehavior = scrollBehavior,
-        colors = TopAppBarDefaults.topAppBarColors(
-            containerColor = MaterialTheme.colorScheme.surface,
-            scrolledContainerColor = MaterialTheme.colorScheme.surfaceContainer,
-        ),
+        colors = colors,
     )
 }
 
