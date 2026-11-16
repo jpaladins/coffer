@@ -256,4 +256,12 @@
     <string name="settings_theme_light">Chiaro</string>
     <string name="settings_theme_dark">Scuro</string>
     <string name="settings_privacy_policy">Informativa sulla privacy</string>
+    <string name="update_available_title">Nuova versione disponibile</string>
+    <string name="update_available_body">Aggiorna Coffer per avere le ultime correzioni e novità.</string>
+    <string name="update_action">Aggiorna</string>
+    <string name="update_dismiss">Ignora</string>
+    <string name="update_downloading_title">Download dell\'aggiornamento…</string>
+    <string name="update_ready_title">Aggiornamento pronto</string>
+    <string name="update_ready_body">Riavvia Coffer per installarlo. I container aperti verranno bloccati.</string>
+    <string name="update_restart">Riavvia</string>
 </resources>

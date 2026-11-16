@@ -29,6 +29,8 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import app.coffer.security.LockGuard
+import app.coffer.update.AppUpdates
+import app.coffer.update.PlayAppUpdates
 import app.coffer.security.AppLock
 import app.coffer.security.KeystoreRememberedPasswords
 import app.coffer.security.RememberedPasswords
@@ -86,6 +88,9 @@ object AppModule {
     @Provides @Singleton
     fun transfers(sessions: SessionManager, access: ContentResolverAccess, guard: LockGuard) =
         TransferManager(sessions, access, guard, Dispatchers.IO, CoroutineScope(SupervisorJob()))
+
+    @Provides @Singleton
+    fun appUpdates(@ApplicationContext ctx: Context): AppUpdates = PlayAppUpdates(ctx)
 
     @Provides @IoDispatcher
     fun io(): CoroutineDispatcher = Dispatchers.IO

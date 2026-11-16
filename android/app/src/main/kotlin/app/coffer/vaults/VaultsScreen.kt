@@ -9,6 +9,9 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.AnimatedContent
+import androidx.hilt.navigation.compose.hiltViewModel
+import app.coffer.update.UpdateBanner
+import app.coffer.update.UpdateViewModel
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.Animatable
@@ -76,6 +79,7 @@ fun VaultsScreen(
     openPicker: Boolean = false,
     onOpen: (id: String, isOpen: Boolean) -> Unit,
 ) {
+    val updates: UpdateViewModel = hiltViewModel()
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         uri?.let { viewModel.onDocumentPicked(it.toString()) }
@@ -94,6 +98,7 @@ fun VaultsScreen(
         onRemove = viewModel::onRemove,
         onLockAll = viewModel::onLockAll,
         onSettings = onSettings,
+        banner = { UpdateBanner(updates) },
     )
 }
 
@@ -108,6 +113,7 @@ fun VaultsContent(
     onSettings: () -> Unit = {},
     onCreate: () -> Unit = {},
     onLock: (String) -> Unit = {},
+    banner: @Composable () -> Unit = {},
 ) {
     var addSheet by remember { mutableStateOf(false) }
     var details by remember { mutableStateOf<String?>(null) }
@@ -116,6 +122,7 @@ fun VaultsContent(
     Scaffold(
         modifier = Modifier.nestedScroll(scroll.nestedScrollConnection),
         topBar = {
+          Column {
             CofferTopBar(stringResource(R.string.vaults_title), scroll, large = false) {
                 AnimatedVisibility(state.anyOpen, enter = fadeIn() + scaleIn(), exit = fadeOut() + scaleOut()) {
                     IconButton(onClick = { haptics.confirm(); onLockAll() }) {
@@ -126,6 +133,8 @@ fun VaultsContent(
                     Icon(Icons.Filled.Settings, contentDescription = stringResource(R.string.vaults_settings))
                 }
             }
+            banner()
+          }
         },
         floatingActionButton = {
             AnimatedVisibility(state.vaults.isNotEmpty(), enter = fadeIn() + scaleIn(), exit = fadeOut() + scaleOut()) {

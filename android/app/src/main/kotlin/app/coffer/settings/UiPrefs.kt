@@ -5,6 +5,7 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -35,10 +36,13 @@ class UiPrefs(private val dataStore: DataStore<Preferences>) {
         ThemeMode.entries.firstOrNull { it.name == p[THEME] } ?: ThemeMode.System
     }.distinctUntilChanged()
 
+    val dismissedUpdate: Flow<Int> = dataStore.data.map { it[DISMISSED_UPDATE] ?: 0 }.distinctUntilChanged()
+
     val lastAccess: Flow<Map<String, Long>> = dataStore.data.map { decode(it[LAST_ACCESS]) }.distinctUntilChanged()
 
     suspend fun setOnboardingDone() { dataStore.edit { it[ONBOARDING] = true } }
     suspend fun setThemeMode(m: ThemeMode) { dataStore.edit { it[THEME] = m.name } }
+    suspend fun setDismissedUpdate(code: Int) { dataStore.edit { it[DISMISSED_UPDATE] = code } }
     suspend fun setLayout(l: BrowserLayout) { dataStore.edit { it[LAYOUT] = l.name } }
 
     suspend fun setSort(s: SortOrder) {
@@ -85,6 +89,7 @@ class UiPrefs(private val dataStore: DataStore<Preferences>) {
         val ONBOARDING = booleanPreferencesKey("ui_onboarding_done")
         val LAYOUT = stringPreferencesKey("ui_layout")
         val THEME = stringPreferencesKey("ui_theme")
+        val DISMISSED_UPDATE = intPreferencesKey("ui_dismissed_update")
         val SORT_KEY = stringPreferencesKey("ui_sort_key")
         val SORT_ASC = booleanPreferencesKey("ui_sort_asc")
         val REMEMBER = booleanPreferencesKey("ui_remember_access")

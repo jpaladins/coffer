@@ -19,8 +19,10 @@ androidxJunit = "1.3.0"
 testRunner = "1.7.0"
 biometric = "1.1.0"
 fragment = "1.8.9"
+appUpdate = "2.1.0"
 
 [libraries]
+play-app-update = { module = "com.google.android.play:app-update", version.ref = "appUpdate" }
 androidx-biometric = { module = "androidx.biometric:biometric", version.ref = "biometric" }
 androidx-fragment = { module = "androidx.fragment:fragment-ktx", version.ref = "fragment" }
 androidx-core-ktx = { module = "androidx.core:core-ktx", version.ref = "coreKtx" }

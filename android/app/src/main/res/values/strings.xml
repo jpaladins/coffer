@@ -254,4 +254,12 @@
     <string name="settings_theme_light">Light</string>
     <string name="settings_theme_dark">Dark</string>
     <string name="settings_privacy_policy">Privacy policy</string>
+    <string name="update_available_title">New version available</string>
+    <string name="update_available_body">Update Coffer to get the latest fixes and features.</string>
+    <string name="update_action">Update</string>
+    <string name="update_dismiss">Dismiss</string>
+    <string name="update_downloading_title">Downloading the update…</string>
+    <string name="update_ready_title">Update ready</string>
+    <string name="update_ready_body">Restart Coffer to install it. Open containers will be locked.</string>
+    <string name="update_restart">Restart</string>
 </resources>
