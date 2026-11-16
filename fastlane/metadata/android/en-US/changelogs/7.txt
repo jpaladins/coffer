@@ -1,0 +1,1 @@
+Update banner: Coffer tells you when a new version is on the Play Store and installs it with one tap. Smoother animations, theme choice (system, light, dark) and privacy policy link in settings.
