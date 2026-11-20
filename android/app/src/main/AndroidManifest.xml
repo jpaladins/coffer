@@ -8,6 +8,8 @@
     <!-- Android 13+: shows the import progress notification. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <!-- Double buzz on a wrong password or PIN; normal permission, never asked. -->
+    <uses-permission android:name="android.permission.VIBRATE" />
 
     <application
         android:name=".CofferApp"

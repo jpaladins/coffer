@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package app.coffer.ui.components
 
+import android.os.VibratorManager
+import android.os.Vibrator
+import android.os.VibrationEffect
 import android.content.Context
 import android.os.Build
 import android.provider.Settings
@@ -41,11 +44,31 @@ class Haptics(private val view: View) {
         )
     }
 
+    /**
+     * A short double buzz: the system REJECT haptic is too faint, or missing,
+     * on many phones for something as important as a wrong password.
+     */
     fun reject() {
-        view.performHapticFeedback(
-            if (Build.VERSION.SDK_INT >= 30) HapticFeedbackConstants.REJECT else HapticFeedbackConstants.LONG_PRESS,
-        )
+        val vibrator = vibrator(view.context)
+        if (vibrator == null || !vibrator.hasVibrator()) {
+            view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+            return
+        }
+        val effect = if (Build.VERSION.SDK_INT >= 29) {
+            VibrationEffect.createPredefined(VibrationEffect.EFFECT_DOUBLE_CLICK)
+        } else {
+            VibrationEffect.createWaveform(longArrayOf(0, 40, 70, 40), -1)
+        }
+        runCatching { vibrator.vibrate(effect) }
     }
+
+    private fun vibrator(context: Context): Vibrator? =
+        if (Build.VERSION.SDK_INT >= 31) {
+            context.getSystemService(VibratorManager::class.java)?.defaultVibrator
+        } else {
+            @Suppress("DEPRECATION")
+            context.getSystemService(Vibrator::class.java)
+        }
 }
 
 @Composable

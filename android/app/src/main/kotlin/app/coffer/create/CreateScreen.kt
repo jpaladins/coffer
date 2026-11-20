@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package app.coffer.create
 
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.ui.semantics.contentType
 import androidx.compose.ui.autofill.ContentType
 import androidx.activity.compose.BackHandler
@@ -262,7 +264,9 @@ private fun CreateContent(
                         }
                         CreateStep.Size -> {
                             Section(stringResource(R.string.create_size))
-                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            // Bottom-aligned at the field's height: the floating label sits above
+                            // the outline, so centring would leave the unit buttons too high.
+                            Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                                 OutlinedTextField(
                                     value = state.sizeText,
                                     onValueChange = viewModel::onSizeChange,
@@ -274,7 +278,12 @@ private fun CreateContent(
                                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                                     modifier = Modifier.weight(1f),
                                 )
-                                Segmented(listOf("MB", "GB"), if (state.sizeGb) 1 else 0, enabled) { viewModel.onSizeUnitGb(it == 1) }
+                                Segmented(
+                                    listOf("MB", "GB"),
+                                    if (state.sizeGb) 1 else 0,
+                                    enabled,
+                                    Modifier.height(OutlinedTextFieldDefaults.MinHeight),
+                                ) { viewModel.onSizeUnitGb(it == 1) }
                             }
                             state.availableBytes?.let {
                                 Text(
@@ -403,14 +412,21 @@ private fun Section(title: String) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun Segmented(options: List<String>, selected: Int, enabled: Boolean, onSelect: (Int) -> Unit) {
-    SingleChoiceSegmentedButtonRow {
+private fun Segmented(
+    options: List<String>,
+    selected: Int,
+    enabled: Boolean,
+    modifier: Modifier = Modifier,
+    onSelect: (Int) -> Unit,
+) {
+    SingleChoiceSegmentedButtonRow(modifier) {
         options.forEachIndexed { i, label ->
             SegmentedButton(
                 selected = i == selected,
                 onClick = { onSelect(i) },
                 enabled = enabled,
                 shape = SegmentedButtonDefaults.itemShape(i, options.size),
+                modifier = Modifier.fillMaxHeight(),
             ) { Text(label) }
         }
     }
