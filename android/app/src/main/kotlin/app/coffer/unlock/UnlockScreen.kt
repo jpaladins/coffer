@@ -1,6 +1,15 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package app.coffer.unlock
 
+import androidx.compose.foundation.layout.width
+import app.coffer.ui.components.shake
+import androidx.compose.ui.semantics.contentType
+import androidx.compose.ui.autofill.ContentType
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.expandVertically
 import androidx.activity.compose.LocalActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -99,6 +108,8 @@ import app.coffer.ui.userMessage
 import kotlinx.coroutines.launch
 
 private val Pill = RoundedCornerShape(CofferRadii.field)
+private val BannerEnter = fadeIn() + expandVertically()
+private val BannerExit = fadeOut() + shrinkVertically()
 
 @Composable
 fun UnlockScreen(viewModel: UnlockViewModel, onBack: () -> Unit, onUnlocked: (String) -> Unit) {
@@ -120,7 +131,13 @@ fun UnlockScreen(viewModel: UnlockViewModel, onBack: () -> Unit, onUnlocked: (St
             }
         }
     }
-    LaunchedEffect(state.phase) { if (state.phase is UnlockPhase.Error) haptics.reject() }
+    var failures by remember { mutableIntStateOf(0) }
+    LaunchedEffect(state.phase) {
+        if (state.phase is UnlockPhase.Error) {
+            haptics.reject()
+            failures++
+        }
+    }
     val resolver = LocalContext.current.contentResolver
     val keyfilePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         uri?.let {
@@ -130,6 +147,7 @@ fun UnlockScreen(viewModel: UnlockViewModel, onBack: () -> Unit, onUnlocked: (St
     }
     UnlockContent(
         state = state,
+        failures = failures,
         onBack = { viewModel.onCancel(); onBack() },
         onPimChange = viewModel::onPimChange,
         onPrfChange = viewModel::onPrfChange,
@@ -179,6 +197,8 @@ private fun TextFieldState.takePassword(): CharArray {
 @Composable
 fun UnlockContent(
     state: UnlockUiState,
+    /** Failed attempts so far: each new one shakes the field and the error. */
+    failures: Int = 0,
     onBack: () -> Unit,
     onPimChange: (String) -> Unit,
     onPrfChange: (String?) -> Unit,
@@ -230,7 +250,7 @@ fun UnlockContent(
                 Spacer(Modifier.height(16.dp))
                 Text(state.label, style = MaterialTheme.typography.headlineMedium, textAlign = TextAlign.Center)
             }
-            SecretField(password, stringResource(R.string.unlock_password), !state.busy) {
+            SecretField(password, stringResource(R.string.unlock_password), !state.busy, Modifier.shake(failures)) {
                 if (!state.busy && !hiddenMissing) submit(false)
             }
             AdvancedSection(showAdvanced, { showAdvanced = !showAdvanced }) {
@@ -267,17 +287,23 @@ fun UnlockContent(
                     SecretField(hiddenPassword, stringResource(R.string.unlock_hidden_password), !state.busy)
                 }
             }
-            (state.phase as? UnlockPhase.Error)?.let { phase ->
-                StatusBanner(
-                    BannerKind.Error,
-                    if (phase.hiddenRequested && phase.error is CofferException.WrongCredentials) {
-                        stringResource(R.string.error_wrong_credentials_hidden)
-                    } else {
-                        phase.error.userMessage()
-                    },
-                )
+            // Keeps the last error while the banner collapses away.
+            var lastError by remember { mutableStateOf<UnlockPhase.Error?>(null) }
+            (state.phase as? UnlockPhase.Error)?.let { lastError = it }
+            AnimatedVisibility(state.phase is UnlockPhase.Error, enter = BannerEnter, exit = BannerExit) {
+                lastError?.let { phase ->
+                    StatusBanner(
+                        BannerKind.Error,
+                        if (phase.hiddenRequested && phase.error is CofferException.WrongCredentials) {
+                            stringResource(R.string.error_wrong_credentials_hidden)
+                        } else {
+                            phase.error.userMessage()
+                        },
+                        modifier = Modifier.shake(failures),
+                    )
+                }
             }
-            if (state.dirtyPrompt) {
+            AnimatedVisibility(state.dirtyPrompt, enter = BannerEnter, exit = BannerExit) {
                 StatusBanner(
                     BannerKind.Warning,
                     stringResource(R.string.dirty_title) + "\n" + stringResource(R.string.dirty_body),
@@ -285,7 +311,7 @@ fun UnlockContent(
                     secondAction = stringResource(R.string.dirty_continue) to onDirtyContinue,
                 )
             }
-            if (state.biometricInvalidated) {
+            AnimatedVisibility(state.biometricInvalidated, enter = BannerEnter, exit = BannerExit) {
                 StatusBanner(BannerKind.Info, stringResource(R.string.unlock_fingerprint_invalidated))
             }
             if (!state.busy && rememberAvailable && !state.hasRemembered) {
@@ -294,7 +320,30 @@ fun UnlockContent(
                     Text(stringResource(R.string.unlock_remember_warning), style = MaterialTheme.typography.bodySmall)
                 }
             }
-            if (!state.dirtyPrompt) {
+            // With a remembered password the fingerprint is the main action and the
+            // password a fallback; otherwise the password button leads.
+            val fingerprintFirst = onFingerprint != null && !state.busy
+            if (!state.dirtyPrompt && fingerprintFirst && onFingerprint != null) {
+                Button(
+                    onClick = onFingerprint,
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.tertiary,
+                        contentColor = MaterialTheme.colorScheme.onTertiary,
+                    ),
+                ) {
+                    Icon(CofferIcons.Fingerprint, contentDescription = null)
+                    Spacer(Modifier.width(8.dp))
+                    Text(stringResource(R.string.unlock_with_fingerprint), style = MaterialTheme.typography.titleMedium)
+                }
+                OutlinedButton(
+                    onClick = { submit(false) },
+                    enabled = !hiddenMissing,
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp),
+                ) {
+                    Text(stringResource(R.string.unlock_button), style = MaterialTheme.typography.titleMedium)
+                }
+            } else if (!state.dirtyPrompt) {
                 Button(
                     onClick = { if (!state.busy) submit(false) },
                     enabled = !hiddenMissing,
@@ -323,11 +372,6 @@ fun UnlockContent(
                     Text(stringResource(R.string.unlock_cancel))
                 }
             } else {
-                if (onFingerprint != null) {
-                    OutlinedButton(onClick = onFingerprint, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
-                        Text(stringResource(R.string.unlock_with_fingerprint))
-                    }
-                }
                 if (state.offerBackupHeaders) {
                     TextButton(onClick = { submit(true) }, enabled = !hiddenMissing, modifier = Modifier.fillMaxWidth()) {
                         Text(stringResource(R.string.unlock_try_backup))
@@ -384,7 +428,13 @@ private fun SwitchRow(label: String, checked: Boolean, enabled: Boolean, onChang
  * masked value: the default semantics exposed the password text in clear.
  */
 @Composable
-private fun SecretField(state: TextFieldState, label: String, enabled: Boolean, onDone: (() -> Unit)? = null) {
+private fun SecretField(
+    state: TextFieldState,
+    label: String,
+    enabled: Boolean,
+    modifier: Modifier = Modifier,
+    onDone: (() -> Unit)? = null,
+) {
     val focus = remember { FocusRequester() }
     var visible by remember { mutableStateOf(false) }
     // The trailing toggle is hidden by clearAndSetSemantics below; offer it as an action instead.
@@ -403,12 +453,15 @@ private fun SecretField(state: TextFieldState, label: String, enabled: Boolean, 
                 )
             }
         },
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .focusRequester(focus)
             .clearAndSetSemantics {
                 contentDescription = label
                 password()
+                // Marks it as a password field for the system too (autofill,
+                // Samsung Privacy Display "PIN and password" detection).
+                contentType = ContentType.Password
                 editableText = AnnotatedString("•".repeat(state.text.length))
                 onClick { focus.requestFocus(); true }
                 customActions = listOf(CustomAccessibilityAction(toggleLabel) { visible = !visible; true })

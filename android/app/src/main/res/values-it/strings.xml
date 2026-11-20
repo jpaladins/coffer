@@ -264,4 +264,6 @@
     <string name="update_ready_title">Aggiornamento pronto</string>
     <string name="update_ready_body">Riavvia Coffer per installarlo. I container aperti verranno bloccati.</string>
     <string name="update_restart">Riavvia</string>
+    <string name="settings_privacy_display">Privacy Display</string>
+    <string name="settings_privacy_display_help">Sui Galaxy con Privacy Display, aggiungi Coffer alle app che lo attivano in automatico: Impostazioni › Schermo › Privacy display.</string>
 </resources>

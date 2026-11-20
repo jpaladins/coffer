@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package app.coffer.create
 
+import androidx.compose.ui.semantics.contentType
+import androidx.compose.ui.autofill.ContentType
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -464,6 +466,7 @@ private fun SecretField(state: TextFieldState, label: String, enabled: Boolean) 
             .clearAndSetSemantics {
                 contentDescription = label
                 password()
+                contentType = ContentType.Password
                 editableText = AnnotatedString("•".repeat(state.text.length))
                 onClick { focus.requestFocus(); true }
             },

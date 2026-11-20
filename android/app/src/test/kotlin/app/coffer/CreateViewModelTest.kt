@@ -80,6 +80,11 @@ class CreateViewModelTest {
     }
 
     @Test
+    fun new_container_defaults_to_exfat() = runTest {
+        assertEquals("exFAT", env().vm.uiState.value.fs)
+    }
+
+    @Test
     fun next_blocked_until_location_valid() = runTest {
         val vm = env().vm
         assertEquals(app.coffer.create.CreateStep.Location, vm.uiState.value.step)

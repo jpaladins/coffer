@@ -1,0 +1,1 @@
+Fingerprint first: containers with a remembered password open with one touch, the password stays as a fallback. Animated error when a password is wrong. Password fields are recognized by the system (Samsung Privacy Display, autofill).
