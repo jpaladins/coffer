@@ -175,7 +175,7 @@ class CreateViewModelTest {
         assertTrue(fx is CreateEffect.Opened)
         assertEquals(64L shl 20, e.native.options!!.size)
         assertEquals("exFAT", e.native.options!!.fs)
-        assertFalse(e.native.options!!.quick)
+        assertTrue(e.native.options!!.quick)
         assertEquals("AES", e.native.options!!.cipher)
         assertEquals("SHA-512", e.native.options!!.prf)
         assertTrue(e.store.state.value.any { it.uri == "content://d/Coffer.hc" })

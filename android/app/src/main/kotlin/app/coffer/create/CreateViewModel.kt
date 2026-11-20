@@ -49,7 +49,7 @@ data class CreateUiState(
     val prf: String = "SHA-512",
     val pim: String = "",
     val fs: String = "exFAT",
-    val quick: Boolean = false,
+    val quick: Boolean = true,
     val keyfiles: List<KeyfileItem> = emptyList(),
     val entropyBytes: Int = 0,
     val ciphers: List<String> = listOf("AES"),
