@@ -1,1 +1,6 @@
-Impronta in primo piano: i container con password ricordata si aprono con un tocco, la password resta come alternativa. Errore animato quando la password è sbagliata. I campi password vengono riconosciuti dal sistema (Privacy Display Samsung, compilazione automatica).
+Coffer 0.1.3a
+• Impronta in primo piano: i container con password ricordata si aprono con un tocco
+• Password sbagliata: animazione e doppia vibrazione
+• Campi password riconosciuti dal sistema (Privacy Display Samsung)
+• Creazione: exFAT e formattazione rapida preselezionati, dimensione allineata
+Versione alpha: tieni un backup dei tuoi container.
