@@ -386,7 +386,10 @@ fun BrowserContent(state: BrowserUiState, snackbar: SnackbarHostState, actions: 
                         (slideOutHorizontally { w -> -dir * w / 4 } + fadeOut())
                 },
                 label = "folder",
-            ) { s ->
+            ) { snapshot ->
+                // Only the folder sliding out keeps its snapshot: the one on screen
+                // follows the live state (layout, search, new or deleted files).
+                val s = if (snapshot.path == state.path) state else snapshot
                 val vis = remember(s.entries, s.query, s.sort) { s.visible }
                 Box(Modifier.fillMaxSize()) {
                 when {
