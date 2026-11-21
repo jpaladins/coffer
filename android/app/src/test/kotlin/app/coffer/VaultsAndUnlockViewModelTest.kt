@@ -71,6 +71,28 @@ class VaultsAndUnlockViewModelTest {
     }
 
     @Test
+    fun deleted_file_is_marked_missing() = runTest {
+        val store = FakeStore(ref)
+        val docs = FakeDocuments().apply { missing += ref.uri }
+        val vm = VaultsViewModel(store, sessions(FakeNative(), store, StandardTestDispatcher(testScheduler)), docs, app.coffer.settings.UiPrefs(MemoryPrefs()))
+        assertTrue(vm.uiState.first { it.vaults.isNotEmpty() }.vaults.single().missing)
+    }
+
+    @Test
+    fun unlocking_a_deleted_file_says_so_without_trying() = runTest {
+        val store = FakeStore(ref)
+        val native = FakeNative()
+        val docs = FakeDocuments().apply { missing += ref.uri }
+        val vm = UnlockViewModel("v1", store, sessions(native, store, StandardTestDispatcher(testScheduler)), documents = docs)
+        advanceUntilIdle()
+        vm.onUnlock("secret".toCharArray())
+        advanceUntilIdle()
+        val phase = vm.uiState.value.phase
+        assertTrue(phase is app.coffer.unlock.UnlockPhase.Error && phase.error is app.coffer.data.CofferException.PermissionLost)
+        assertEquals(null, native.lastCreds)
+    }
+
+    @Test
     fun unlock_success_records_last_access() = runTest {
         val store = FakeStore(ref)
         val prefs = app.coffer.settings.UiPrefs(MemoryPrefs())

@@ -266,4 +266,6 @@
     <string name="update_restart">Riavvia</string>
     <string name="settings_privacy_display">Privacy Display</string>
     <string name="settings_privacy_display_help">Sui Galaxy con Privacy Display, aggiungi Coffer alle app che lo attivano in automatico: Impostazioni › Schermo › Privacy display.</string>
+    <string name="vault_missing_badge">File non trovato</string>
+    <string name="vault_missing_body">Il file è stato eliminato o spostato fuori da Coffer. Se l\'hai spostato, rimuovilo dall\'elenco e aggiungilo di nuovo.</string>
 </resources>

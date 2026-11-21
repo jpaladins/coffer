@@ -15,6 +15,8 @@ import java.io.ByteArrayOutputStream
 import java.io.FileNotFoundException
 
 /** SAF document operations the UI layer needs (seam for tests). */
+enum class FileStatus { Available, Missing, Unknown }
+
 interface DocumentAccess {
     /** Keeps access to [uri] across restarts. */
     fun persist(uri: String)
@@ -23,6 +25,8 @@ interface DocumentAccess {
     fun availableBytes(uri: String): Long? = null
     /** Size of the document in bytes, if the provider reports it. */
     fun fileSize(uri: String): Long? = null
+    /** Whether the document still exists; Unknown when the provider cannot say. */
+    fun status(uri: String): FileStatus = FileStatus.Unknown
 }
 
 class ContentResolverAccess(private val resolver: ContentResolver) : FdOpener, DocumentAccess, ImportSource {
@@ -80,6 +84,26 @@ class ContentResolverAccess(private val resolver: ContentResolver) : FdOpener, D
             if (it.moveToFirst() && !it.isNull(0)) it.getLong(0) else null
         }
     }.getOrNull()
+
+    // A deleted document either has no row any more, throws, or (some
+    // providers) reports an empty file: no container is ever 0 bytes.
+    override fun status(uri: String): FileStatus = try {
+        resolver.query(uri.toUri(), arrayOf(OpenableColumns.SIZE), null, null, null)?.use { c ->
+            when {
+                !c.moveToFirst() -> FileStatus.Missing
+                !c.isNull(0) && c.getLong(0) == 0L -> FileStatus.Missing
+                else -> FileStatus.Available
+            }
+        } ?: FileStatus.Missing
+    } catch (_: FileNotFoundException) {
+        FileStatus.Missing
+    } catch (_: SecurityException) {
+        FileStatus.Missing
+    } catch (_: IllegalArgumentException) {
+        FileStatus.Missing
+    } catch (_: Exception) {
+        FileStatus.Unknown
+    }
 
     override fun displayName(uri: String): String? =
         resolver.query(Uri.parse(uri), arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use {

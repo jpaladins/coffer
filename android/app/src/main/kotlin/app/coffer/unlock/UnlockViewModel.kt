@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package app.coffer.unlock
 
+import app.coffer.platform.FileStatus
+import app.coffer.platform.DocumentAccess
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import app.coffer.data.CancelSignal
@@ -70,6 +72,7 @@ class UnlockViewModel @AssistedInject constructor(
     private val sessions: SessionManager,
     private val remembered: RememberedPasswords = NoRememberedPasswords,
     private val uiPrefs: UiPrefs? = null,
+    private val documents: DocumentAccess? = null,
 ) : ViewModel() {
     @AssistedFactory
     interface Factory {
@@ -186,6 +189,13 @@ class UnlockViewModel @AssistedInject constructor(
             try {
                 val ref = store.vaults.first().firstOrNull { it.id == vaultId }
                     ?: throw CofferException.NotFound(vaultId)
+                // A deleted file would otherwise fail later with a confusing size error.
+                if (documents?.status(ref.uri) == FileStatus.Missing) {
+                    password.fill('\u0000')
+                    hidden?.fill('\u0000')
+                    toRemember?.fill('\u0000')
+                    throw CofferException.PermissionLost(ref.uri)
+                }
                 val req = UnlockRequest(
                     password, s.pim.toIntOrNull() ?: 0, s.keyfiles.map { it.uri }, s.prf, tryBackupHeaders,
                     writable = !s.readOnly, hiddenPassword = hidden,

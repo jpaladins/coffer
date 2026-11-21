@@ -108,8 +108,8 @@ fun VaultCard(
                             item.isOpen,
                             transitionSpec = { (fadeIn() + scaleIn(initialScale = 0.8f)) togetherWith (fadeOut() + scaleOut(targetScale = 0.8f)) },
                             label = "badge",
-                        ) { StateBadge(it) }
-                        item.fileBytes?.let {
+                        ) { if (item.missing) MissingBadge() else StateBadge(it) }
+                        item.fileBytes?.takeUnless { item.missing }?.let {
                             Text(
                                 humanSize(it),
                                 maxLines = 1,
@@ -133,7 +133,13 @@ fun VaultCard(
                 },
                 label = "details",
             ) { shown ->
-                Column { if (shown.isOpen) OpenDetails(shown, onLock) else LastAccess(shown, now) }
+                Column {
+                    when {
+                        shown.isOpen -> OpenDetails(shown, onLock)
+                        shown.missing -> MissingDetails(onRemove)
+                        else -> LastAccess(shown, now)
+                    }
+                }
             }
         }
     }
@@ -182,6 +188,31 @@ private fun OpenDetails(item: VaultItem, onLock: () -> Unit) {
         Icon(Icons.Filled.Lock, contentDescription = null)
         Spacer(Modifier.width(8.dp))
         Text(stringResource(R.string.vault_lock))
+    }
+}
+
+@Composable
+private fun MissingBadge() {
+    val c = MaterialTheme.colorScheme
+    Surface(color = c.errorContainer, contentColor = c.onErrorContainer, shape = CircleShape) {
+        Text(
+            stringResource(R.string.vault_missing_badge),
+            style = MaterialTheme.typography.labelMedium,
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 2.dp),
+        )
+    }
+}
+
+/** The file was deleted or moved outside Coffer: say so and offer the way out. */
+@Composable
+private fun MissingDetails(onRemove: () -> Unit) {
+    Text(
+        stringResource(R.string.vault_missing_body),
+        style = MaterialTheme.typography.bodyMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+    androidx.compose.material3.OutlinedButton(onClick = onRemove, modifier = Modifier.padding(top = 8.dp)) {
+        Text(stringResource(R.string.vaults_remove))
     }
 }
 

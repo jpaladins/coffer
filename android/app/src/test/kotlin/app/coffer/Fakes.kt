@@ -95,6 +95,9 @@ class FakeDocuments : DocumentAccess {
     override fun displayName(uri: String) = uri.substringAfterLast('/')
     val sizes = mutableMapOf<String, Long>()
     override fun fileSize(uri: String): Long? = sizes[uri]
+    val missing = mutableSetOf<String>()
+    override fun status(uri: String) =
+        if (uri in missing) app.coffer.platform.FileStatus.Missing else app.coffer.platform.FileStatus.Available
 }
 
 /** Writable in-memory volume (case-insensitive, like FAT/exFAT). */

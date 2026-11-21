@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package app.coffer.vaults
 
+import app.coffer.platform.FileStatus
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import app.coffer.data.SessionManager
@@ -34,6 +35,8 @@ data class VaultItem(
     val cipher: String? = null,
     val prf: String? = null,
     val lastAccess: Long? = null,
+    /** The container file was deleted or moved outside Coffer. */
+    val missing: Boolean = false,
 )
 
 data class VaultsUiState(val vaults: List<VaultItem> = emptyList(), val loaded: Boolean = false) {
@@ -68,6 +71,8 @@ class VaultsViewModel @Inject constructor(
                         cipher = info?.cipher,
                         prf = info?.prf,
                         lastAccess = access[ref.id],
+                        missing = ref.id !in open &&
+                            runCatching { documents.status(ref.uri) }.getOrNull() == FileStatus.Missing,
                     )
                 },
                 loaded = true,
