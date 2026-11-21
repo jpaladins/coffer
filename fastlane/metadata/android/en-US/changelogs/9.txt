@@ -1,0 +1,4 @@
+Coffer 0.1.4a
+• Containers deleted or moved outside Coffer are marked "File not found", with a button to remove them
+• Clear message instead of a size error when the file no longer exists
+• Fingerprint first, animated errors with vibration, exFAT and quick format preselected

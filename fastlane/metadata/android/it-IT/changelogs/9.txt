@@ -1,0 +1,4 @@
+Coffer 0.1.4a
+• I container cancellati o spostati fuori da Coffer vengono segnalati come "File non trovato", con il pulsante per rimuoverli
+• Messaggio chiaro invece dell'errore di dimensione quando il file non esiste più
+• Impronta in primo piano, errori animati con vibrazione, exFAT e formattazione rapida preselezionati
