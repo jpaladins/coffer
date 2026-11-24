@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package app.coffer.vaults
 
+import androidx.compose.foundation.layout.BoxWithConstraints
 import app.coffer.ui.components.rememberHaptics
 import androidx.compose.animation.togetherWith
 import androidx.compose.animation.scaleOut
@@ -151,7 +152,12 @@ fun VaultsContent(
       // Empty state and list cross-fade when the last container is removed or the first added.
       AnimatedContent(state.loaded && state.vaults.isEmpty(), transitionSpec = { fadeIn() togetherWith fadeOut() }, label = "vaults") { empty ->
         if (empty) {
-            Column(Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState())) {
+            // Centred in the free space below the bar; still scrolls when the text is large.
+            BoxWithConstraints(Modifier.fillMaxSize().padding(padding)) {
+            Column(
+                Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).heightIn(min = maxHeight),
+                verticalArrangement = Arrangement.Center,
+            ) {
                 EmptyState(
                     CofferIcons.FolderOpen,
                     stringResource(R.string.vaults_empty_title),
@@ -175,6 +181,7 @@ fun VaultsContent(
                         }
                     }
                 }
+            }
             }
         } else {
             val animate = rememberAnimationsEnabled()
