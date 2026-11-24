@@ -1,0 +1,6 @@
+Coffer 0.1.5b — first beta
+• Beta notice on first launch
+• Removing a container also deletes its remembered password
+• A wrong PIM or keyfile no longer deletes the remembered password
+• Folder contents update at once (grid/list, new or deleted files)
+• Empty home screen centred

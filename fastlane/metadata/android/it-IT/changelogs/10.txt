@@ -1,0 +1,6 @@
+Coffer 0.1.5b — prima beta
+• Avviso beta al primo avvio
+• Rimuovendo un container viene cancellata anche la sua password ricordata
+• Un PIM o keyfile sbagliato non cancella più la password ricordata
+• Il contenuto delle cartelle si aggiorna subito (griglia/elenco, file nuovi o eliminati)
+• Schermata iniziale vuota centrata
