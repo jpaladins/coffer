@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package app.coffer
 
+import app.coffer.onboarding.shouldShowBetaNotice
+import app.coffer.onboarding.BetaNotice
+import androidx.compose.foundation.layout.Box
 import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Build
@@ -109,23 +112,31 @@ class MainActivity : FragmentActivity() {
                     Surface(Modifier.fillMaxSize()) {}
                 } else {
                     val done by uiPrefs.onboardingDone.collectAsStateWithLifecycle<Boolean?>(initialValue = null)
+                    val betaAccepted by uiPrefs.betaAccepted.collectAsStateWithLifecycle<Boolean?>(initialValue = null)
                     val vaults by store.vaults.collectAsStateWithLifecycle<List<VaultRef>?>(initialValue = null)
                     val d = done
                     val v = vaults
-                    if (d == null || v == null) {
+                    val b = betaAccepted
+                    if (d == null || v == null || b == null) {
                         Surface(Modifier.fillMaxSize()) {}
                     } else {
                         val route = start ?: (if (shouldShowOnboarding(d, v.size)) Routes.ONBOARDING else Routes.VAULTS).also { start = it }
                         // Updated from 0.0.1a with containers: never show it later either.
                         LaunchedEffect(d, v.isEmpty()) { if (!d && v.isNotEmpty()) uiPrefs.setOnboardingDone() }
-                        // The notification request comes after the onboarding.
-                        if (d) LaunchedEffect(Unit) { if (!e2e) askNotificationsOnce() }
+                        // The notification request comes after the onboarding and the beta notice.
+                        if (d && b) LaunchedEffect(Unit) { if (!e2e) askNotificationsOnce() }
+                        Box(Modifier.fillMaxSize()) {
                         CofferNavHost(
                             sessions.openIds, settings, appLock, remembered.isAvailable(), nav,
                             startDestination = route,
                             onOnboardingDone = { lifecycleScope.launch { uiPrefs.setOnboardingDone() } },
                             uiPrefs = uiPrefs,
                         )
+                        // Over the app, so what the onboarding started (picker, creation) is kept underneath.
+                        if (shouldShowBetaNotice(d, b)) {
+                            BetaNotice { lifecycleScope.launch { uiPrefs.setBetaAccepted() } }
+                        }
+                        }
                     }
                 }
             }

@@ -23,6 +23,7 @@ data class SortOrder(val key: SortKey = SortKey.Name, val ascending: Boolean = t
 class UiPrefs(private val dataStore: DataStore<Preferences>) {
     val onboardingDone: Flow<Boolean> = flag(ONBOARDING, false)
     val rememberLastAccess: Flow<Boolean> = flag(REMEMBER, true)
+    val betaAccepted: Flow<Boolean> = flag(BETA, false)
 
     val layout: Flow<BrowserLayout> = dataStore.data.map { p ->
         BrowserLayout.entries.firstOrNull { it.name == p[LAYOUT] } ?: BrowserLayout.List
@@ -41,6 +42,7 @@ class UiPrefs(private val dataStore: DataStore<Preferences>) {
     val lastAccess: Flow<Map<String, Long>> = dataStore.data.map { decode(it[LAST_ACCESS]) }.distinctUntilChanged()
 
     suspend fun setOnboardingDone() { dataStore.edit { it[ONBOARDING] = true } }
+    suspend fun setBetaAccepted() { dataStore.edit { it[BETA] = true } }
     suspend fun setThemeMode(m: ThemeMode) { dataStore.edit { it[THEME] = m.name } }
     suspend fun setDismissedUpdate(code: Int) { dataStore.edit { it[DISMISSED_UPDATE] = code } }
     suspend fun setLayout(l: BrowserLayout) { dataStore.edit { it[LAYOUT] = l.name } }
@@ -87,6 +89,7 @@ class UiPrefs(private val dataStore: DataStore<Preferences>) {
 
     internal companion object {
         val ONBOARDING = booleanPreferencesKey("ui_onboarding_done")
+        val BETA = booleanPreferencesKey("ui_beta_accepted")
         val LAYOUT = stringPreferencesKey("ui_layout")
         val THEME = stringPreferencesKey("ui_theme")
         val DISMISSED_UPDATE = intPreferencesKey("ui_dismissed_update")

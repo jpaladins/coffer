@@ -268,4 +268,11 @@
     <string name="settings_privacy_display_help">Sui Galaxy con Privacy Display, aggiungi Coffer alle app che lo attivano in automatico: Impostazioni › Schermo › Privacy display.</string>
     <string name="vault_missing_badge">File non trovato</string>
     <string name="vault_missing_body">Il file è stato eliminato o spostato fuori da Coffer. Se l\'hai spostato, rimuovilo dall\'elenco e aggiungilo di nuovo.</string>
+    <string name="beta_title">Coffer è in beta</string>
+    <string name="beta_body">Coffer funziona ed è stato provato con VeraCrypt, ma è ancora giovane. Prima di iniziare:</string>
+    <string name="beta_point_backup">Tieni una copia di backup dei tuoi container, soprattutto prima di modificarli.</string>
+    <string name="beta_point_bugs">Alcune funzioni potrebbero avere ancora bug o cambiare nelle prossime versioni.</string>
+    <string name="beta_point_report">Se qualcosa non va, segnalalo sulla pagina GitHub del progetto.</string>
+    <string name="beta_accept">Accetto e continuo</string>
+    <string name="beta_accept_wait">Accetto e continuo (%1$d)</string>
 </resources>

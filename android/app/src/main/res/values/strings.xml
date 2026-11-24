@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Coffer</string>
+    <string name="app_name" translatable="false">Coffer</string>
     <string name="tagline">Your VeraCrypt® volumes, safe in your pocket</string>
     <string name="native_ok">Encryption engine ready</string>
     <string name="native_failed">Encryption engine failed to load</string>
@@ -266,4 +266,11 @@
     <string name="settings_privacy_display_help">On Galaxy phones with Privacy Display, add Coffer to the apps that turn it on automatically: Settings › Display › Privacy display.</string>
     <string name="vault_missing_badge">File not found</string>
     <string name="vault_missing_body">The file was deleted or moved outside Coffer. If you moved it, remove it from the list and add it again.</string>
+    <string name="beta_title">Coffer is in beta</string>
+    <string name="beta_body">Coffer works and has been tested with VeraCrypt, but it is still young. Before you start:</string>
+    <string name="beta_point_backup">Keep a backup copy of your containers, especially before writing to them.</string>
+    <string name="beta_point_bugs">Some features may still have bugs or change in future versions.</string>
+    <string name="beta_point_report">If something goes wrong, report it on the project GitHub page.</string>
+    <string name="beta_accept">I accept and continue</string>
+    <string name="beta_accept_wait">I accept and continue (%1$d)</string>
 </resources>
