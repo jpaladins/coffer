@@ -1,6 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package app.coffer.nav
 
+import kotlinx.coroutines.flow.first
+import androidx.compose.ui.platform.LocalContext
+import app.coffer.data.FfiNativeVaults
+import app.coffer.selftest.SelfTestScreen
+import app.coffer.selftest.SelfTestRunner
+import app.coffer.selftest.AppSecurityState
 import android.net.Uri
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
@@ -50,6 +56,7 @@ object Routes {
     const val CREATE = "create"
     const val SETTINGS = "settings"
     const val ABOUT = "about"
+    const val SELF_TEST = "selftest"
     fun unlock(id: String) = "unlock/${Uri.encode(id)}"
     fun browser(id: String) = "browser/${Uri.encode(id)}"
     fun viewer(id: String, path: String) = "viewer/${Uri.encode(id)}?path=${Uri.encode(path)}"
@@ -120,9 +127,25 @@ fun CofferNavHost(
             }
         }
         composable(Routes.SETTINGS) {
-            SettingsScreen(settings, appLock, biometricAvailable, onBack = { nav.popBackStack() }, uiPrefs = uiPrefs) {
+            SettingsScreen(
+                settings, appLock, biometricAvailable, onBack = { nav.popBackStack() }, uiPrefs = uiPrefs,
+                onSelfTest = { nav.navigate(Routes.SELF_TEST) },
+            ) {
                 nav.navigate(Routes.ABOUT)
             }
+        }
+        composable(Routes.SELF_TEST) {
+            val ctx = LocalContext.current
+            val runner = remember { SelfTestRunner(ctx.applicationContext, FfiNativeVaults()) }
+            SelfTestScreen(
+                runner,
+                state = {
+                    kotlinx.coroutines.runBlocking {
+                        AppSecurityState(settings.secureWindow.first(), settings.appLockMode.first())
+                    }
+                },
+                onBack = { nav.popBackStack() },
+            )
         }
         composable(Routes.ABOUT) {
             AboutScreen(onBack = { nav.popBackStack() })

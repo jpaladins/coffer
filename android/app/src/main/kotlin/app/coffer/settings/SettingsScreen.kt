@@ -78,6 +78,7 @@ fun SettingsScreen(
     biometricAvailable: Boolean,
     onBack: () -> Unit,
     uiPrefs: UiPrefs? = null,
+    onSelfTest: () -> Unit = {},
     onAbout: () -> Unit,
 ) {
     val scope = rememberCoroutineScope()
@@ -141,6 +142,14 @@ fun SettingsScreen(
                 if (mode != AppLockMode.OFF) {
                     SettingsItem(stringResource(R.string.settings_change_pin), onClick = { pinFor = mode })
                 }
+                Divider()
+                SettingsItem(
+                    stringResource(R.string.selftest_title),
+                    summary = stringResource(R.string.selftest_summary),
+                    icon = Icons.Filled.Lock,
+                    trailing = { Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null) },
+                    onClick = onSelfTest,
+                )
                 Divider()
                 SwitchItem(
                     stringResource(R.string.settings_secure_window),

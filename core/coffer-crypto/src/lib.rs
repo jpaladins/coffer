@@ -10,6 +10,7 @@ mod header;
 mod kdf;
 mod keyfile;
 mod prf;
+pub mod selftest;
 mod xts;
 
 pub use cancel::CancelToken;

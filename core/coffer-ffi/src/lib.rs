@@ -491,6 +491,33 @@ pub fn list_prfs() -> Vec<String> {
     Prf::ALL.iter().map(|p| p.name().to_string()).collect()
 }
 
+/// One on-device known-answer check (see `coffer_crypto::selftest`).
+#[derive(uniffi::Record, Debug, Clone)]
+pub struct FfiCheck {
+    pub name: String,
+    pub ok: bool,
+}
+
+/// Crypto known-answer tests plus a sanity check of the system RNG.
+#[uniffi::export]
+pub fn self_test() -> Vec<FfiCheck> {
+    let mut out: Vec<FfiCheck> = coffer_crypto::selftest::run()
+        .into_iter()
+        .map(|c| FfiCheck { name: c.name, ok: c.ok })
+        .collect();
+    out.push(FfiCheck { name: "System RNG".to_string(), ok: rng_looks_sane() });
+    out
+}
+
+/// Two 64-byte draws: both must succeed, differ, and not be constant.
+fn rng_looks_sane() -> bool {
+    let (mut a, mut b) = ([0u8; 64], [0u8; 64]);
+    if getrandom::fill(&mut a).is_err() || getrandom::fill(&mut b).is_err() {
+        return false;
+    }
+    a != b && a.iter().any(|&x| x != a[0]) && b.iter().any(|&x| x != b[0])
+}
+
 /// OS randomness XORed with a SHA-512 keystream keyed by `extra`: the
 /// result is at least as unpredictable as the OS bytes alone.
 struct MixedRng {

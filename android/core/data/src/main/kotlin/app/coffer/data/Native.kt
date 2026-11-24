@@ -110,6 +110,9 @@ interface NativeVaults {
 
     fun ciphers(): List<String> = listOf("AES")
     fun prfs(): List<String> = listOf("SHA-512")
+
+    /** On-device known-answer tests of every cipher and KDF, plus the system RNG: (name, passed). */
+    fun selfTest(): List<Pair<String, Boolean>> = emptyList()
 }
 
 class FfiNativeVaults : NativeVaults {
@@ -122,6 +125,8 @@ class FfiNativeVaults : NativeVaults {
     override fun ciphers(): List<String> = listCiphers()
 
     override fun prfs(): List<String> = listPrfs()
+
+    override fun selfTest(): List<Pair<String, Boolean>> = app.coffer.ffi.selfTest().map { it.name to it.ok }
 
     override fun create(
         fd: Int,
