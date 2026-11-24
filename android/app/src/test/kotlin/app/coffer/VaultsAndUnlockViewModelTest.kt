@@ -48,6 +48,19 @@ class VaultsAndUnlockViewModelTest {
     }
 
     @Test
+    fun remove_forgets_the_remembered_password() = runTest {
+        val store = FakeStore(ref)
+        val r = FakeRemembered().apply { saved["v1"] = "secret" }
+        val vm = VaultsViewModel(
+            store, sessions(FakeNative(), store, StandardTestDispatcher(testScheduler)), FakeDocuments(),
+            app.coffer.settings.UiPrefs(MemoryPrefs()), StandardTestDispatcher(testScheduler), r,
+        )
+        vm.onRemove("v1")
+        advanceUntilIdle()
+        assertEquals(listOf("v1"), r.forgotten)
+    }
+
+    @Test
     fun remove_closes_session_and_forgets_vault() = runTest {
         val store = FakeStore(ref)
         val sm = sessions(FakeNative(), store, StandardTestDispatcher(testScheduler))

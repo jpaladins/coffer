@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package app.coffer.vaults
 
+import app.coffer.security.NoRememberedPasswords
+import app.coffer.security.RememberedPasswords
 import app.coffer.platform.FileStatus
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -50,6 +52,7 @@ class VaultsViewModel @Inject constructor(
     private val documents: DocumentAccess,
     private val uiPrefs: UiPrefs,
     @IoDispatcher private val io: CoroutineDispatcher = Dispatchers.IO,
+    private val remembered: RememberedPasswords = NoRememberedPasswords,
 ) : ViewModel() {
     /** Bumped when the list comes back on screen: free space may have changed. */
     private val refresh = MutableStateFlow(0)
@@ -93,6 +96,8 @@ class VaultsViewModel @Inject constructor(
         viewModelScope.launch {
             store.remove(id)
             uiPrefs.forget(id)
+            // A removed container must not leave its saved password (Keystore key + ciphertext) behind.
+            runCatching { remembered.forget(id) }
         }
     }
 

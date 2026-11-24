@@ -216,7 +216,9 @@ class UnlockViewModel @AssistedInject constructor(
             } catch (_: CofferException.Cancelled) {
                 _uiState.update { it.copy(phase = UnlockPhase.Idle) }
             } catch (e: CofferException) {
-                if (fromRemembered && e is CofferException.WrongCredentials) {
+                // Only the saved password was tried: then it is stale. With a PIM or
+                // keyfiles set, those may be what is wrong, so keep it.
+                if (fromRemembered && e is CofferException.WrongCredentials && s.pim.isBlank() && s.keyfiles.isEmpty()) {
                     // The volume password changed since it was saved.
                     runCatching { remembered.forget(vaultId) }
                     _uiState.update { it.copy(hasRemembered = false) }

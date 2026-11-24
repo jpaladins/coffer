@@ -129,6 +129,21 @@ class UnlockSecurityTest {
         assertFalse(vm.uiState.value.hasRemembered)
     }
 
+    /** A wrong PIM or keyfile is not proof that the saved password is stale. */
+    @Test
+    fun wrong_pim_keeps_the_saved_password() = runTest {
+        // The unlock fails while a PIM is set: Coffer cannot tell which input was wrong.
+        val r = FakeRemembered().apply { saved["v1"] = "saved-before" }
+        val vm = vm(remembered = r)
+        advanceUntilIdle()
+        vm.onPimChange("485")
+        vm.onBiometricAuthenticated(vm.decryptCipher()!!)
+        advanceUntilIdle()
+        assertTrue(vm.uiState.value.phase is UnlockPhase.Error)
+        assertTrue(r.forgotten.isEmpty())
+        assertTrue(vm.uiState.value.hasRemembered)
+    }
+
     @Test
     fun invalidated_key_forgets_and_falls_back() = runTest {
         val r = FakeRemembered(invalidated = true).apply { saved["v1"] = "secret" }
