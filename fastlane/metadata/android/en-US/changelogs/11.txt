@@ -1,0 +1,3 @@
+Coffer 0.1.6b
+• New "Security check" in Settings: tests every cipher against official values, creates and reopens test containers and checks the phone's protections
+• The beta notice closes with an animation

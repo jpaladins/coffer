@@ -1,0 +1,3 @@
+Coffer 0.1.6b
+• Nuova "Verifica sicurezza" nelle Impostazioni: prova ogni cifrario con i valori ufficiali, crea e riapre container di prova e controlla le protezioni del telefono
+• L'avviso beta si chiude con un'animazione
