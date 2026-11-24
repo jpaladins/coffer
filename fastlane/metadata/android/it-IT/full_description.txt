@@ -1,12 +1,26 @@
-Coffer apre i tuoi container VeraCrypt® su Android, senza root.
+Coffer apre i tuoi container VeraCrypt® su Android, senza root e senza accesso a internet.
 
-• Apertura con password, PIM e keyfile: AES, Serpent, Twofish, Camellia, Kuznyechik e le loro cascate; SHA-512, SHA-256, Whirlpool, BLAKE2s, Streebog e Argon2id.
-• Sfoglia, visualizza ed esporta i file; aprili con altre app senza copie in chiaro sul disco.
-• Scrittura: importa file, crea cartelle, rinomina, sposta ed elimina, su FAT ed exFAT.
+APRI
+• Password, PIM e keyfile, anche volumi nascosti.
+• Tutti i cifrari di VeraCrypt: AES, Serpent, Twofish, Camellia, Kuznyechik e le loro cascate; SHA-512, SHA-256, Whirlpool, BLAKE2s, Streebog e Argon2id.
+• Sblocco rapido con l'impronta, se scegli di ricordare la password.
+
+SFOGLIA E MODIFICA
+• Vista a elenco o a griglia, con anteprime delle foto create solo in memoria.
+• Ricerca e ordinamento per nome, data o dimensione.
+• Importa file, crea cartelle, rinomina, sposta ed elimina, anche più file insieme, su FAT ed exFAT.
+• Apri i file con altre app senza lasciare copie in chiaro sul telefono.
 • Protezione del volume nascosto mentre scrivi in quello esterno.
-• Creazione di nuovi container (FAT o exFAT) che VeraCrypt sul computer apre come sempre.
-• Blocco automatico, blocco dell'app con PIN o impronta, screenshot bloccati.
 
-Privata per progetto: nessun permesso internet, nessuna pubblicità, nessun tracciamento. Software libero con licenza GPLv3.
+CREA
+• Nuovi container FAT o exFAT, in pochi passaggi, che VeraCrypt sul computer apre come sempre.
+
+SICUREZZA E PRIVACY
+• Blocco automatico dei container, blocco dell'app con PIN o impronta, screenshot bloccati.
+• Nessun permesso internet, nessuna pubblicità, nessun tracciamento.
+• Tema chiaro, scuro o di sistema.
+• Software libero con licenza GPLv3: il codice è pubblico e verificabile.
+
+Coffer è in beta: funziona ed è verificato con VeraCrypt, ma tieni sempre una copia di backup dei tuoi container.
 
 Coffer è un progetto indipendente e non è affiliato a IDRIX. VeraCrypt® è un marchio di IDRIX.
