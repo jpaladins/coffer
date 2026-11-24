@@ -1,6 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package app.coffer
 
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.AnimatedVisibility
 import app.coffer.onboarding.shouldShowBetaNotice
 import app.coffer.onboarding.BetaNotice
 import androidx.compose.foundation.layout.Box
@@ -133,7 +138,12 @@ class MainActivity : FragmentActivity() {
                             uiPrefs = uiPrefs,
                         )
                         // Over the app, so what the onboarding started (picker, creation) is kept underneath.
-                        if (shouldShowBetaNotice(d, b)) {
+                        // Slides down and fades out on accept instead of vanishing at once.
+                        AnimatedVisibility(
+                            shouldShowBetaNotice(d, b),
+                            enter = fadeIn(),
+                            exit = fadeOut() + slideOutVertically { it / 6 } + scaleOut(targetScale = 0.96f),
+                        ) {
                             BetaNotice { lifecycleScope.launch { uiPrefs.setBetaAccepted() } }
                         }
                         }
