@@ -262,8 +262,6 @@
     <string name="update_ready_title">Update ready</string>
     <string name="update_ready_body">Restart Coffer to install it. Open containers will be locked.</string>
     <string name="update_restart">Restart</string>
-    <string name="settings_privacy_display">Privacy Display</string>
-    <string name="settings_privacy_display_help">On Galaxy phones with Privacy Display, add Coffer to the apps that turn it on automatically: Settings › Display › Privacy display.</string>
     <string name="vault_missing_badge">File not found</string>
     <string name="vault_missing_body">The file was deleted or moved outside Coffer. If you moved it, remove it from the list and add it again.</string>
     <string name="beta_title">Coffer is in beta</string>

@@ -1,10 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package app.coffer.settings
 
-import androidx.compose.ui.platform.LocalContext
-import android.provider.Settings
-import android.os.Build
-import android.content.Intent
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.contentType
 import androidx.compose.ui.autofill.ContentType
@@ -88,7 +84,6 @@ fun SettingsScreen(
     val themeMode by (uiPrefs?.themeMode ?: kotlinx.coroutines.flow.flowOf(ThemeMode.System))
         .collectAsStateWithLifecycle(initialValue = ThemeMode.System)
     val uriHandler = LocalUriHandler.current
-    val context = LocalContext.current
     val rememberAccess by (uiPrefs?.rememberLastAccess ?: kotlinx.coroutines.flow.flowOf(true))
         .collectAsStateWithLifecycle(initialValue = true)
     var pinFor by remember { mutableStateOf<AppLockMode?>(null) }
@@ -164,16 +159,6 @@ fun SettingsScreen(
                         stringResource(R.string.settings_remember_access_help),
                         rememberAccess,
                     ) { scope.launch { uiPrefs.setRememberLastAccess(it) } }
-                    // Samsung offers no app API for Privacy Display: the phone turns it on
-                    // for the apps the user picks, so point there.
-                    if (Build.MANUFACTURER.equals("samsung", ignoreCase = true)) {
-                        SettingsItem(
-                            stringResource(R.string.settings_privacy_display),
-                            summary = stringResource(R.string.settings_privacy_display_help),
-                            trailing = { Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null) },
-                            onClick = { runCatching { context.startActivity(Intent(Settings.ACTION_DISPLAY_SETTINGS)) } },
-                        )
-                    }
                 }
             }
             SettingsSection(stringResource(R.string.settings_section_info)) {
